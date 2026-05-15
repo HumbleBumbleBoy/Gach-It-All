@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               Int      @id @default(autoincrement())
+  username         String?
+  email            String   @unique
+  password_hashed  String?
+  created_at       DateTime @default(now())
+  total_pulls      Int      @default(0)
+  unique_cards     Int      @default(0)
+  wins             Int      @default(0)
+  losses           Int      @default(0)
+  trades_completed Int      @default(0)
+  purchases_made   Int      @default(0)
+  currency         Float    @default(0)
+  
+  userCards UserCards[]
+}
+
+model UserCards {
+  id               Int      @id @default(autoincrement())
+  user_id          Int
+  card_template_id Int
+  quality          String
+  enhancement      String
+  acquired_at      DateTime @default(now())
+  is_favourited    Boolean  @default(false)
+  kills            Int      @default(0)
+  deaths           Int      @default(0)
+  sold_amount      Int?     @default(0)
+  
+  user         User          @relation(fields: [user_id], references: [id])
+  cardTemplate CardTemplates @relation(fields: [card_template_id], references: [id])
+}
+
+model CardTemplates {
+  id        Int     @id @default(autoincrement())
+  name      String?
+  series    String?
+  type      String?
+  base_hp   Int
+  base_def  Int
+  base_atk  Int
+  base_price Float
+  rarity    String?
+  image_url String?
+  
+  userCards UserCards[]
+}
