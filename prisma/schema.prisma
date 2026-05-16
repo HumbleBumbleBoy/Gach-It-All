@@ -1,6 +1,5 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -8,20 +7,29 @@ datasource db {
 }
 
 model User {
-  id               Int      @id @default(autoincrement())
-  username         String?
-  email            String   @unique
-  password_hashed  String?
-  created_at       DateTime @default(now())
-  total_pulls      Int      @default(0)
-  unique_cards     Int      @default(0)
-  wins             Int      @default(0)
-  losses           Int      @default(0)
-  trades_completed Int      @default(0)
-  purchases_made   Int      @default(0)
-  currency         Float    @default(0)
+  id               Int        @id @default(autoincrement())
+  clerkId          String     @unique 
+  full_name        String?
+  username         String?    @unique 
+  email            String     @unique
+  user_status      UserStatus @default(STANDARD)
+  created_at       DateTime   @default(now())
+  last_login       DateTime   @default(now())
+  total_pulls      Int        @default(0)
+  unique_cards     Int        @default(0)
+  wins             Int        @default(0)
+  losses           Int        @default(0)
+  trades_completed Int        @default(0)
+  purchases_made   Int        @default(0)
+  currency         Float      @default(0)
   
   userCards UserCards[]
+}
+
+enum UserStatus {
+  STANDARD
+  SPECIAL
+  CREATOR  // Optional: special role for you as the game creator
 }
 
 model UserCards {
