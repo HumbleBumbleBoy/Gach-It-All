@@ -11,7 +11,9 @@ import cors from 'cors';
 import { clerkClient, clerkMiddleware, getAuth } from '@clerk/express';
 
 // Import prisma dynamically after env is loaded
-const { prisma } = await import('../../lib/prisma.js');
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { prisma } = require('../../lib/prisma.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,7 +22,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, '../../dist')));
 
 // Catch-all route to serve index.html
-app.get('*', (req, res) => {
+app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '../../dist/index.html'));
 });
 
