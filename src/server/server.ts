@@ -21,8 +21,8 @@ const PORT = process.env.PORT || 3000;
 // Serve static files from the React build
 app.use(express.static(path.join(__dirname, '../../dist')));
 
-// Catch-all route to serve index.html
-app.get('*', (_req, res) => {
+// Catch-all route to serve index.html (for React Router)
+app.use('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '../../dist/index.html'));
 });
 

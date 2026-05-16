@@ -1,31 +1,25 @@
 app = "gatch-it-all"
 primary_region = "ams"
 
-#[deploy]
-#  release_command = "npx prisma migrate deploy"
-
-[build]
-  build_command = "npm run build"
-
 [env]
-  NODE_ENV = "production"
+NODE_ENV = "production"
 
 [http_service]
-  internal_port = 3000
-  force_https = true
+force_https = true
+internal_port = 3000
 
 [[services]]
-  internal_port = 3000
-  protocol = "tcp"
+internal_port = 3000
+protocol = "tcp"
 
   [services.concurrency]
-    hard_limit = 25
-    soft_limit = 20
+  hard_limit = 25
+  soft_limit = 20
 
   [[services.ports]]
-    handlers = ["http"]
-    port = 80
+  handlers = ["http"]
+  port = 80
 
   [[services.ports]]
-    handlers = ["tls", "http"]
-    port = 443
+  handlers = ["tls", "http"]
+  port = 443
