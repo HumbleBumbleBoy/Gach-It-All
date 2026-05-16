@@ -7,13 +7,13 @@ function App() {
 
   useEffect(() => {
     if (isSignedIn && user) {
-      fetch('http://localhost:3000/api/user-login', {
+      fetch('/api/user-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // includes cookies/auth
-        mode: 'cors'
+        credentials: 'include',
       })
       .then(res => res.json())
+      .then(data => console.log('Backend response:', data))
       .catch(err => console.error('Error calling backend:', err));
     }
   }, [isSignedIn, user]);
