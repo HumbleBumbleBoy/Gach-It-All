@@ -7,6 +7,7 @@ app = 'gatch-it-all'
 primary_region = 'ams'
 
 [build]
+  build_command = "npm run build"
 
 [http_service]
   internal_port = 8080

@@ -16,6 +16,14 @@ const { prisma } = await import('../../lib/prisma.js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Serve static files from the React build
+app.use(express.static(path.join(__dirname, '../../dist')));
+
+// Catch-all route to serve index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../../dist/index.html'));
+});
+
 app.use(express.json());
 
 // Clerk middleware - protects routes
