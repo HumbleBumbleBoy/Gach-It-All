@@ -18,13 +18,8 @@ const { prisma } = require('../../lib/prisma.js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files from the React build
+// Serve static files
 app.use(express.static(path.join(__dirname, '../../dist')));
-
-// Catch-all route to serve index.html (for React Router)
-app.use('*', (_req, res) => {
-  res.sendFile(path.join(__dirname, '../../dist/index.html'));
-});
 
 app.use(express.json());
 
@@ -97,6 +92,11 @@ app.post('/api/user-login', async (req, res) => {
         res.status(500).json({ error: 'Failed to process user' })
     }
 });
+
+app.get('/*', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../../dist/index.html'));
+});
+
 
 // Start server
 app.listen(PORT, () => {
