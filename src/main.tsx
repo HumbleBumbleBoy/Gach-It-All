@@ -8,6 +8,8 @@ import Collection from './pages/Collection/Collection.tsx';
 import Shop from './pages/Shop/Shop.tsx';
 import Battle from './pages/Battle/Battle.tsx';
 import Trade from './pages/Trade/Trade.tsx';
+import Profile from './pages/Profile/Profile.tsx';
+import Settings from './pages/Settings/Settings.tsx';
 import { ClerkProvider } from '@clerk/react';
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -23,6 +25,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/shop" element={<Shop />} />
           <Route path="/battle" element={<Battle />} />
           <Route path="/trade" element={<Trade />} />
+          <Route path="/Profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </BrowserRouter>
     </ClerkProvider>
