@@ -8,6 +8,10 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
+# Add Supabase CA certificate
+COPY supabase-ca.crt /usr/local/share/ca-certificates/supabase-ca.crt
+RUN chmod 644 /usr/local/share/ca-certificates/supabase-ca.crt && update-ca-certificates
+
 # Install ALL dependencies (including dev for build)
 RUN npm install
 

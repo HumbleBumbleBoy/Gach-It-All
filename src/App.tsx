@@ -1,6 +1,7 @@
 import './App.css';
-import { Show, SignInButton, SignUpButton, UserButton, useUser } from '@clerk/react';
+import { useUser } from '@clerk/react';
 import { useEffect } from 'react';
+import Navbar from './components/Navbar';
 
 function App() {
   const { isSignedIn, user } = useUser();
@@ -20,21 +21,13 @@ function App() {
 
   return (
     <>
-      <header>
-        <Show when="signed-out">
-          <SignInButton></SignInButton>
-          <SignUpButton></SignUpButton>
-        </Show>
-        <Show when="signed-in">
-          <UserButton />
-        </Show>
-      </header>
-
-      <Show when="signed-in">
-        <h1>Hey there {user?.username}!</h1>
-      </Show>
+      <Navbar />
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-2xl font-bold text-white">Hi there {user?.username || "friend"}!</h1>
+        
+      </main>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
