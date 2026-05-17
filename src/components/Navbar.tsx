@@ -18,11 +18,11 @@ function classNames(...classes: string[]) {
 
 export default function Navbar() {
   const location = useLocation();
-  const { signOut } = useClerk();  // ✅ Add this
+  const { signOut } = useClerk();
 
   const handleSignOut = async () => {
     await signOut();
-    // edirect to home page after sign out
+    // redirect to home page after sign out
     window.location.href = '/';
   };
 
