@@ -2,20 +2,16 @@ import './App.css';
 import { useUser } from '@clerk/react';
 import { useEffect } from 'react';
 import Navbar from './components/Navbar';
+import { apiClient } from '../lib/api';
 
 function App() {
   const { isSignedIn, user } = useUser();
 
   useEffect(() => {
     if (isSignedIn && user) {
-      fetch('/api/user-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      })
-      .then(res => res.json())
-      .then(data => console.log('Backend response:', data))
-      .catch(err => console.error('Error calling backend:', err));
+      apiClient.userLogin()
+        .then(data => console.log('Backend response:', data))
+        .catch(err => console.error('Error calling backend:', err));
     }
   }, [isSignedIn, user]);
 
