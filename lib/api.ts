@@ -1,13 +1,6 @@
-const getApiBaseUrl = () => {
-  if (import.meta.env.DEV) {
-    return 'http://localhost:3000';  // Use express in dev
-  }
-  return '';  // Use prod origin
-};
-
 export const apiClient = {
   async userLogin() {
-    const response = await fetch(`${getApiBaseUrl()}/api/user-login`, {
+    const response = await fetch(`/api/user-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -16,24 +9,23 @@ export const apiClient = {
   },
   
   async getCurrency() {
-    const response = await fetch(`${getApiBaseUrl()}/api/user/currency`, {
+    const response = await fetch(`/api/user/currency`, {
       credentials: 'include',
     });
     return response.json();
   },
 
   async getInventory() {
-    const response = await fetch(`${getApiBaseUrl()}/api/user/inventory`, {
+    const response = await fetch(`/api/user/inventory`, {
       credentials: 'include',
     });
     return response.json();
   },
 
   async getCollection() {
-    const response = await fetch(`${getApiBaseUrl()}/api/user/collection`, {
+    const response = await fetch(`/api/user/collection`, {
       credentials: 'include',
     });
     return response.json();
   },
-
 };

@@ -17,20 +17,21 @@ const prisma = new PrismaClient({ adapter });
 import express from 'express';
 import cors from 'cors';
 import { clerkClient, clerkMiddleware, getAuth } from '@clerk/express';
-import { error } from 'console';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json());
+
 app.use(clerkMiddleware({
   secretKey: process.env.CLERK_SECRET_KEY,
   publishableKey: process.env.CLERK_PUBLISHABLE_KEY
 }));
+
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? 'https://gatchitall.com' 
+    ? ['https://gatchitall.com', 'https://www.gatchitall.com'] 
     : 'http://localhost:5173',
   credentials: true
 }));
@@ -103,10 +104,9 @@ app.get('/api/user/inventory', async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
   
-  // Convert clerkId to user's database ID
   const user = await prisma.user.findUnique({
     where: { clerkId: auth.userId },
-    select: { id: true }  // Get the numeric database ID
+    select: { id: true }
   });
   
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -115,7 +115,29 @@ app.get('/api/user/inventory', async (req, res) => {
     where: { user_id: user.id }
   });
   
-  res.json({ items });
+  // Fetch the actual item/pack details for each inventory item
+  const itemsWithDetails = await Promise.all(items.map(async (inv) => {
+    let details = null;
+    if (inv.item_type === 'ITEM') {
+      details = await prisma.item.findUnique({
+        where: { id: inv.reference_id },
+        select: { name: true, image_url: true, description: true }
+      });
+    } else if (inv.item_type === 'PACK') {
+      details = await prisma.pack.findUnique({
+        where: { id: inv.reference_id },
+        select: { name: true, image_url: true, description: true }
+      });
+    }
+    
+    return {
+      ...inv,
+      name: details?.name || 'Unknown',
+      image_url: details?.image_url
+    };
+  }));
+  
+  res.json({ items: itemsWithDetails });
 });
 
 app.get('/api/user/collection', async (req, res) => {
