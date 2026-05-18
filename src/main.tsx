@@ -11,13 +11,19 @@ import Battle from './pages/Battle/Battle.tsx';
 import Market from './pages/Market/Market.tsx';
 import Profile from './pages/Profile/Profile.tsx';
 import Settings from './pages/Settings/Settings.tsx';
+import SignInPage from './pages/Auth/SignIn';
+import SignUpPage from './pages/Auth/SignUp';
 import { ClerkProvider } from '@clerk/react';
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ClerkProvider publishableKey={publishableKey}>
+    <ClerkProvider 
+      publishableKey={publishableKey}
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+    >
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<App />} />
@@ -29,6 +35,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/market" element={<Market />} />
           <Route path="/Profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/sign-in" element={<SignInPage />} />
+          <Route path="/sign-up" element={<SignUpPage />} />
         </Routes>
       </BrowserRouter>
     </ClerkProvider>
