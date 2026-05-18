@@ -30,8 +30,6 @@ app.use(cors({
 }));
 
 
-app.use(express.static(path.join(__dirname, '../../dist')));
-
 // API routes
 app.get('/api/protected', (req, res) => {
   const auth = getAuth(req);
@@ -77,6 +75,12 @@ app.post('/api/user-login', async (req, res) => {
     console.error('Error processing user.', error);
     res.status(500).json({ error: 'Failed to process user' });
   }
+});
+
+app.use(express.static(path.join(__dirname, '../../dist')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../../dist/index.html'));
 });
 
 app.listen(PORT, () => {
