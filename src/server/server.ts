@@ -29,7 +29,7 @@ app.use(cors({
   credentials: true
 }));
 
-// Serve static files ONLY (no catch-all route needed)
+
 app.use(express.static(path.join(__dirname, '../../dist')));
 
 // API routes
