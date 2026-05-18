@@ -118,6 +118,25 @@ app.get('/api/user/inventory', async (req, res) => {
   res.json({ items });
 });
 
+app.get('/api/user/collection', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  // Convert clerkId to user's database ID
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true }  // Get the numeric database ID
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  const items = await prisma.userCards.findMany({
+    where: { user_id: user.id }
+  });
+  
+  res.json({ items });
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

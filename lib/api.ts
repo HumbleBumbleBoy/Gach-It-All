@@ -28,5 +28,12 @@ export const apiClient = {
     });
     return response.json();
   },
-  
+
+  async getCollection() {
+    const response = await fetch(`${getApiBaseUrl()}/api/user/collection`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
+
 };

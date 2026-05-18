@@ -16,16 +16,16 @@ export default function Inventory() {
   }, [isSignedIn]);
 
   const getItemText = (count: number) => {
-    return count === 1 ? 'item' : 'items';
+    return count === 1 ? 'item!' : items.length > 0 ? 'items!' : 'items... ouch';
   };
 
   return (
     <>
         <Navbar />
         <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
-            <h1>Welcome to the Inventory section!</h1>
-            <div>We found a total of {items.length} {getItemText(items.length)}!</div>
-            
+            <h1>All non-card items land here!</h1>
+            <div>We found a total of {items.length} {getItemText(items.length)}</div>
+            <div>Nothing here yet... sorry :/</div>
         </main>
     </>
   ) 

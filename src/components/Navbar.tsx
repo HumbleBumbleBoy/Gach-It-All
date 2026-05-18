@@ -5,6 +5,7 @@ import { Bars3Icon, BellIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../lib/api';
+import LoadingSkeleton from './LoadingSkeleton';
 
 const navigation = [
   { name: 'Gacha', href: '/gacha' },
@@ -12,7 +13,7 @@ const navigation = [
   { name: 'Inventory', href: '/inventory'},
   { name: 'Shop', href: '/shop' },
   { name: 'Battle', href: '/battle' },
-  { name: 'Trade', href: '/trade' },
+  { name: 'Market', href: '/market' },
 ];
 
 function classNames(...classes: string[]) {
@@ -22,14 +23,8 @@ function classNames(...classes: string[]) {
 export default function Navbar() {
   const location = useLocation();
   const { signOut } = useClerk();
-  const { isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [currency, setCurrency] = useState(0);
-
-  const handleSignOut = async () => {
-    await signOut();
-    // redirect to home page after sign out
-    window.location.href = '/';
-  };
 
   useEffect(() => {
   if (isSignedIn && user) {
@@ -39,6 +34,15 @@ export default function Navbar() {
     }
   }, [isSignedIn, user]);
 
+  if (!isLoaded) {
+    return <LoadingSkeleton />;
+  }
+
+  const handleSignOut = async () => {
+    await signOut();
+    // redirect to home page after sign out
+    window.location.href = '/';
+  };
 
   return (
     <Disclosure
@@ -123,8 +127,8 @@ export default function Navbar() {
                   </MenuItem>
                   <MenuItem>
                     <button
-                      onClick={handleSignOut}  // ✅ Use Clerk's signOut
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-300 data-focus:bg-white/5 data-focus:outline-hidden"
+                      onClick={handleSignOut}
+                      className="block w-full text-left px-4 py-2 text-sm text-red-300 data-focus:bg-red-500/10"
                     >
                       Sign out
                     </button>

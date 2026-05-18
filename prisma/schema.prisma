@@ -72,7 +72,31 @@ model Pack {
   price       Float
   image_url   String?
   cards_count Int     @default(5)
+  
+  // Drop rates (0-100) has to add app to 100% (duh)
+  common_rate       Float   @default(53.7)  // 53.7% chance by default
+  uncommon_rate     Float   @default(22.6)  // 22.6% chance by default
+  sparse_rate       Float   @default(12.4)   // 12.4% chance by default
+  rare_rate         Float   @default(7.4)   // 7.4% chance by default
+  uber_rare_rate    Float   @default(2.3)  // 2.3% chance by default
+  mythical_rate     Float   @default(1.2)  // 1.2% chance by default
+  legendary_rate    Float   @default(0.4)   // 0.4% chance by default
+  special_rate      Float   @default(0)   // 0% chance keep for special event packs
+  
+  // Series filtering (which card series can appear)
+  included_series Json? // JSON array: ["ikea_set", "website_set"] or "all"
+  excluded_series Json? // JSON array: ["Holiday Special"]
+  
+  // Card type filtering
+  included_types Json?  // JSON array: ["flesh", "digital", "tough"] or "all"
+  
+  // Special cards (fixed drops, e.g., guaranteed legendary)
+  guaranteed_card_ids Json? // JSON array: [1, 42, 99]
+  guaranteed_count    Int     @default(0)
+  
   is_available Boolean @default(true)
+  available_from DateTime?
+  available_until DateTime?
   created_at  DateTime @default(now())
 }
 
@@ -83,16 +107,11 @@ model Item {
   item_type   ItemType
   price       Float
   image_url   String?
-  effect_value String?
-  duration    Int?
   is_available Boolean @default(true)
   created_at  DateTime @default(now())
 }
 
 enum ItemType {
-  BADGE
-  BOOSTER
-  CONSUMABLE
   COSMETIC
 }
 
@@ -101,11 +120,19 @@ model Achievement {
   name        String
   description String
   image_url   String
-  reward_type String   // "pack", "currency", "card", "item" and so on
-  reward_value String  // "Ikea_pack", "100", "card_id_42" and so on
+  reward_type Reward   // "pack", "currency", "card", "item" and so on
+  reward_value String // If CARD: card_id, if PACK: pack_id, if CURRENCY: amount, if COSMETIC: item_id, if STATUS: string
   created_at  DateTime @default(now())
   
   userAchievements UserAchievement[]
+}
+
+enum Reward {
+  CARD
+  PACK
+  COSMETIC
+  CURRENCY
+  STATUS
 }
 
 model UserAchievement {
