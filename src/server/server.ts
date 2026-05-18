@@ -36,6 +36,11 @@ app.use(cors({
   credentials: true
 }));
 
+app.use((_req, res, next) => {
+  // Remove any existing CSP header that might be causing issues
+  res.removeHeader('Content-Security-Policy');
+  next();
+});
 
 // API routes
 app.get('/api/protected', (req, res) => {
