@@ -23,7 +23,10 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json());
-app.use(clerkMiddleware());
+app.use(clerkMiddleware({
+  secretKey: process.env.CLERK_SECRET_KEY,
+  publishableKey: process.env.CLERK_PUBLISHABLE_KEY
+}));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? 'https://gatchitall.com' 
