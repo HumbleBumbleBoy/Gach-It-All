@@ -77,6 +77,10 @@ app.post('/api/user-login', async (req, res) => {
   }
 });
 
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 app.use(express.static(path.join(__dirname, '../../dist')));
 
 app.use((_req, res) => {

@@ -11,3 +11,5 @@ npx tsx server
 (update db structure)
 npx prisma migrate dev
 npx prisma generate
+
+fly deploy --no-cache

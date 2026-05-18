@@ -24,6 +24,8 @@ model User {
   currency         Float      @default(0)
   
   userCards UserCards[]
+  userAchievements UserAchievement[]
+  userInventory    UserInventory[] 
 }
 
 enum UserStatus {
@@ -61,4 +63,42 @@ model CardTemplates {
   image_url String?
   
   userCards UserCards[]
+}
+
+model Achievement {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String
+  image_url   String
+  reward_type String   // "pack", "currency", "card", "item" and so on
+  reward_value String  // "Ikea_pack", "100", "card_id_42" and so on
+  created_at  DateTime @default(now())
+  
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id             Int      @id @default(autoincrement())
+  user_id        Int
+  achievement_id Int
+  progress       Int      @default(0)
+  completed_at   DateTime?
+  claimed_at     DateTime?
+  
+  user        User        @relation(fields: [user_id], references: [id])
+  achievement Achievement @relation(fields: [achievement_id], references: [id])
+  
+  @@unique([user_id, achievement_id])
+}
+
+model UserInventory {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  item_type  String   // "pack", "currency", "card", "item" and so on
+  item_id    String   // "Ikea_pack", "Collector_badge", "card_id_42" and so on
+  quantity   Int      @default(1)
+  expires_at DateTime? // In case I wanna do timed items
+  created_at DateTime @default(now())
+  
+  user User @relation(fields: [user_id], references: [id])
 }
