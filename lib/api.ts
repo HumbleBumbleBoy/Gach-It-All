@@ -1,9 +1,8 @@
 const getApiBaseUrl = () => {
-  if (import.meta.env.PROD) {
-    return '';
+  if (import.meta.env.DEV) {
+    return 'http://localhost:3000';  // Use express in dev
   }
-  // In development, point to your Express server
-  return 'http://localhost:3000';
+  return '';  // Use prod origin
 };
 
 export const apiClient = {
@@ -15,4 +14,19 @@ export const apiClient = {
     });
     return response.json();
   },
+  
+  async getCurrency() {
+    const response = await fetch(`${getApiBaseUrl()}/api/user/currency`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
+
+  async getInventory() {
+    const response = await fetch(`${getApiBaseUrl()}/api/user/inventory`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
+  
 };

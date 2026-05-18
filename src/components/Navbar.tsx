@@ -1,12 +1,15 @@
 // components/Navbar.tsx
-import { Show, SignInButton, SignUpButton, UserAvatar, useClerk } from '@clerk/react';
+import { Show, SignInButton, SignUpButton, UserAvatar, useClerk, useUser } from '@clerk/react';
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { Bars3Icon, BellIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { apiClient } from '../../lib/api';
 
 const navigation = [
   { name: 'Gacha', href: '/gacha' },
   { name: 'Collection', href: '/collection' },
+  { name: 'Inventory', href: '/inventory'},
   { name: 'Shop', href: '/shop' },
   { name: 'Battle', href: '/battle' },
   { name: 'Trade', href: '/trade' },
@@ -19,12 +22,23 @@ function classNames(...classes: string[]) {
 export default function Navbar() {
   const location = useLocation();
   const { signOut } = useClerk();
+  const { isSignedIn, user } = useUser();
+  const [currency, setCurrency] = useState(0);
 
   const handleSignOut = async () => {
     await signOut();
     // redirect to home page after sign out
     window.location.href = '/';
   };
+
+  useEffect(() => {
+  if (isSignedIn && user) {
+      apiClient.getCurrency()
+        .then(data => setCurrency(data.currency ?? 0))
+        .catch(err => console.error('Failed to fetch currency:', err));
+    }
+  }, [isSignedIn, user]);
+
 
   return (
     <Disclosure
@@ -74,6 +88,9 @@ export default function Navbar() {
           
           <div className="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
             <Show when="signed-in">
+              <div className='mr-2'>
+                <span className='select-none'>${currency}</span>
+              </div>
               <button
                 type="button"
                 className="relative rounded-full p-1 text-gray-400 hover:text-white focus:outline-2 focus:outline-offset-2 focus:outline-indigo-500"

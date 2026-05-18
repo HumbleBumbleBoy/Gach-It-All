@@ -17,6 +17,7 @@ const prisma = new PrismaClient({ adapter });
 import express from 'express';
 import cors from 'cors';
 import { clerkClient, clerkMiddleware, getAuth } from '@clerk/express';
+import { error } from 'console';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -80,6 +81,41 @@ app.post('/api/user-login', async (req, res) => {
     console.error('Error processing user.', error);
     res.status(500).json({ error: 'Failed to process user' });
   }
+});
+
+app.get('/api/user/currency', async (req, res) => {
+  const auth = getAuth(req);
+  
+  if (!auth.userId) {
+    console.log("failed to get value - no auth");
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { currency: true }
+  });
+
+  res.json({ currency: user?.currency ?? 0 });
+});
+
+app.get('/api/user/inventory', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  // Convert clerkId to user's database ID
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true }  // Get the numeric database ID
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  const items = await prisma.userInventory.findMany({
+    where: { user_id: user.id }
+  });
+  
+  res.json({ items });
 });
 
 app.get('/health', (_req, res) => {
