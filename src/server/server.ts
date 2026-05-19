@@ -30,9 +30,7 @@ app.use(clerkMiddleware({
 }));
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://gatchitall.com', 'https://www.gatchitall.com'] 
-    : 'http://localhost:5173',
+  origin: ['https://gatchitall.com', 'https://www.gatchitall.com', 'http://localhost:5173'],
   credentials: true
 }));
 

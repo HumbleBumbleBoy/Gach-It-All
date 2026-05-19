@@ -16,6 +16,7 @@ import SignUpPage from './pages/Auth/SignUp';
 import { ClerkProvider } from '@clerk/react';
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+console.log('Clerk key:', import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.substring(0, 20));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
