@@ -21,6 +21,9 @@ RUN npx prisma generate
 # Copy source code
 COPY . .
 
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+
 # Build the app (both client and server)
 RUN npm run build
 

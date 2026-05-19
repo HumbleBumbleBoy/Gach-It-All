@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   define: {
-    'import.meta.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(process.env.VITE_CLERK_PUBLISHABLE_KEY)
+    'import.meta.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(process.env.VITE_CLERK_PUBLISHABLE_KEY || 'pk_live_Y2xlcmsuZ2F0Y2hpdGFsbC5jb20k')
   },
   
   plugins: [
