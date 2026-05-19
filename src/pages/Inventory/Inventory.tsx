@@ -24,7 +24,7 @@ export default function Inventory() {
         <Navbar />
         <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
             <h1>All non-card items land here!</h1>
-            <div>We found a total of {items.length} {getItemText(items.length)}</div>
+            <div>We found a total of {items?.length || 0} {getItemText(items?.length || 0)}</div>
             {items.length === 0 && <div>Nothing here yet... sorry :/</div>}
             {items.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6">
