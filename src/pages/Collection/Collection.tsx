@@ -29,7 +29,7 @@ export default function Collection() {
       <Navbar />
       <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
         <h1>Your vast card collection!</h1>
-        <div>We found a total of {cards.length} {getCollectionText(cards.length)}</div>
+        <div>We found a total of {cards?.length || 0} {getCollectionText(cards?.length || 0)}</div>
         {cards.length === 0 && <div>Nothing here yet... sorry :/</div>}
         {cards.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6">
