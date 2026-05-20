@@ -189,9 +189,7 @@ app.post('/api/user-login', async (req, res) => {
     }
     
     const dbUser = await prisma.user.upsert({
-      where: { 
-        clerkId: auth.userId
-      },
+      where: { clerkId: auth.userId },
       update: {
         email: email,
         full_name: clerkUser.fullName || null,
@@ -217,6 +215,48 @@ app.post('/api/user-login', async (req, res) => {
             purchases_made: 0
           }
         }
+      },
+      include: {
+        userStats: true
+      }
+    });
+
+    const today = new Date().toDateString();
+    const lastLoginDate = dbUser.userStats?.last_login_date;
+    const lastLoginDateString = lastLoginDate ? new Date(lastLoginDate).toDateString() : null;
+    
+    let newLoginStreak = 1;
+    if (lastLoginDateString === today) {
+      newLoginStreak = dbUser.userStats?.login_streak || 1;
+    } else if (lastLoginDateString === new Date(Date.now() - 86400000).toDateString()) {
+      newLoginStreak = (dbUser.userStats?.login_streak || 0) + 1;
+    }
+    
+    await prisma.userStats.upsert({
+      where: { user_id: dbUser.id },
+      update: {
+        login_count: { increment: 1 },
+        login_streak: newLoginStreak,
+        last_login_date: new Date()
+      },
+      create: {
+        user_id: dbUser.id,
+        login_count: 1,
+        login_streak: 1,
+        last_login_date: new Date(),
+        total_pulls: 0,
+        unique_cards: 0,
+        wins: 0,
+        losses: 0,
+        trades_completed: 0,
+        purchases_made: 0,
+        total_play_minutes: 0,
+        total_cards_sold: 0,
+        consecutive_wins: 0,
+        highest_win_streak: 0,
+        consecutive_losses: 0,
+        highest_lose_streak: 0,
+        battle_rating: 1000
       }
     });
     

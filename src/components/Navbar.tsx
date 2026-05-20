@@ -125,24 +125,25 @@ export default function Navbar() {
                   </MenuItem>
 
                   <MenuItem>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 md:gap-4 md:p-4">
                       {achievements.map((achievement: any) => {
                         const progress = getUserProgress(achievement.id);
                         const isCompleted = progress.completed_at !== null;
                         return (
-                          <div key={achievement.id} className={`bg-gray-900 rounded-lg p-4`}>
-                            <div className="flex gap-10">
-                              <div className="w-16 h-16 overflow-hidden rounded-lg">
+                          <div key={achievement.id} className="bg-gray-900 rounded-lg p-3 md:p-4">
+                            {/* Mobile: stacked layout, Desktop: side-by-side */}
+                            <div className="flex flex-col sm:flex-row sm:gap-4 gap-2">
+                              <div className="w-16 h-16 mx-auto sm:mx-0 overflow-hidden rounded-lg">
                                 <img 
                                   src={achievement.image_url} 
                                   alt={achievement.name} 
-                                  className="w-16 h-16 object-cover"
+                                  className="w-full h-full object-cover"
                                 />
                               </div>
                               
-                              <div className='flex flex-col justify-center'>
-                                <h3 className="text-white text-sm font-semibold text-center">{achievement.name}</h3>
-                                <p className="text-gray-400 text-xs text-center">{achievement.description}</p>
+                              <div className='flex flex-col justify-center text-center sm:text-left'>
+                                <h3 className="text-white text-sm font-semibold">{achievement.name}</h3>
+                                <p className="text-gray-400 text-xs mt-0.5">{achievement.description}</p>
                               </div>
                             </div>
 
