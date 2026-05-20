@@ -10,7 +10,7 @@ export default function Inventory() {
   useEffect(() => {
   if (isSignedIn && user) {
       apiClient.getInventory()
-        .then(data => setItems(data.items))  // do something productive with it later
+        .then(data => setItems(data.items))
         .catch(err => console.error('Failed to fetch inventory:', err));
     }
   }, [isSignedIn]);

@@ -28,4 +28,18 @@ export const apiClient = {
     });
     return response.json();
   },
+
+  async getAchievements() {
+    const response = await fetch(`/api/achievements`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
+
+  async getUserAchievements() {
+    const response = await fetch(`/api/user/achievements`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
 };

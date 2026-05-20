@@ -1,7 +1,7 @@
 // components/Navbar.tsx
 import { Show, SignInButton, SignUpButton, UserAvatar, useClerk, useUser } from '@clerk/react';
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import { Bars3Icon, BellIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, TrophyIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../lib/api';
@@ -25,12 +25,22 @@ export default function Navbar() {
   const { signOut } = useClerk();
   const { isLoaded, isSignedIn, user } = useUser();
   const [currency, setCurrency] = useState(0);
+  const [achievements, setAchievements] = useState<any[]>([]);
+  const [userAchievements, setUserAchievements] = useState<any[]>([]);
 
   useEffect(() => {
-  if (isSignedIn && user) {
+    if (isSignedIn && user) {
       apiClient.getCurrency()
         .then(data => setCurrency(data.currency ?? 0))
         .catch(err => console.error('Failed to fetch currency:', err));
+
+      apiClient.getAchievements()
+        .then(data => setAchievements(data.achievements || []))
+        .catch(err => console.error('Failed to fetch achievements:', err));
+
+      apiClient.getUserAchievements()
+        .then(data => setUserAchievements(data.userAchievements || []))
+        .catch(err => console.error('Failed to fetch user achievements:', err));
     }
   }, [isSignedIn, user]);
 
@@ -40,8 +50,12 @@ export default function Navbar() {
 
   const handleSignOut = async () => {
     await signOut();
-    // redirect to home page after sign out
     window.location.href = '/';
+  };
+
+  const getUserProgress = (achievementId: number) => {
+    const userAchievement = userAchievements.find(ua => ua.achievement_id === achievementId);
+    return userAchievement || { progress: 0, completed_at: null };
   };
 
   return (
@@ -95,15 +109,65 @@ export default function Navbar() {
               <div className='mr-2'>
                 <span className='select-none'>${currency}</span>
               </div>
-              <button
-                type="button"
-                className="relative rounded-full p-1 text-gray-400 hover:text-white focus:outline-2 focus:outline-offset-2 focus:outline-indigo-500"
-              >
-                <span className="absolute -inset-1.5" />
-                <span className="sr-only">View notifications</span>
-                <BellIcon aria-hidden="true" className="size-6" />
-              </button>
+              <Menu as="div">
+                <MenuButton className="relative rounded-full p-1 text-gray-400 hover:text-white focus:outline-2 focus:outline-offset-2 focus:outline-indigo-500">
+                  <span className="absolute -inset-1.5" />
+                  <span className="sr-only">View achievements</span>
+                  <TrophyIcon aria-hidden="false" className="size-6" />
+                </MenuButton>
 
+                <MenuItems
+                  transition
+                  className="absolute z-10 mt-10 left-1/2 -translate-x-1/2 min-w-3/4 max-w-2/3 min-h-[75vh] max-h-[75vh] overflow-y-auto rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
+                >
+                  <MenuItem>
+                    <h1 className='text-center text-white text-xl font-bold'>Achievements</h1>
+                  </MenuItem>
+
+                  <MenuItem>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 p-4">
+                      {achievements.map((achievement: any) => {
+                        const progress = getUserProgress(achievement.id);
+                        const isCompleted = progress.completed_at !== null;
+                        return (
+                          <div key={achievement.id} className={`bg-gray-900 rounded-lg p-4`}>
+                            <div className="flex gap-10">
+                              <div className="w-16 h-16 overflow-hidden rounded-lg">
+                                <img 
+                                  src={achievement.image_url} 
+                                  alt={achievement.name} 
+                                  className="w-16 h-16 object-cover"
+                                />
+                              </div>
+                              
+                              <div className='flex flex-col justify-center'>
+                                <h3 className="text-white text-sm font-semibold text-center">{achievement.name}</h3>
+                                <p className="text-gray-400 text-xs text-center">{achievement.description}</p>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-green-400 rounded-full transition-all duration-300"
+                                  style={{ 
+                                    width: `${(progress.progress / (achievement.value_int || achievement.value_float || 100)) * 100}%` 
+                                  }}
+                                />
+                              </div>
+                              <p className="text-gray-400 text-xs whitespace-nowrap">
+                                {progress.progress} / {achievement.value_int || achievement.value_float || 100}
+                              </p>
+                              {isCompleted && <span className="text-green-400 text-xs whitespace-nowrap">✓</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </MenuItem>
+                </MenuItems>
+              </Menu>
+              
               <Menu as="div" className="relative ml-3">
                 <MenuButton className="relative flex rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
                   <span className="absolute -inset-1.5" />
@@ -115,6 +179,11 @@ export default function Navbar() {
                   transition
                   className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
                 >
+                  <MenuItem>
+                    <Link to="/stats" className="block px-4 py-2 text-sm text-gray-300 data-focus:bg-white/5 data-focus:outline-hidden">
+                      Your stats
+                    </Link>
+                  </MenuItem>
                   <MenuItem>
                     <Link to="/profile" className="block px-4 py-2 text-sm text-gray-300 data-focus:bg-white/5 data-focus:outline-hidden">
                       Your profile

@@ -9,6 +9,7 @@ import Inventory from './pages/Inventory/Inventory.tsx';
 import Shop from './pages/Shop/Shop.tsx';
 import Battle from './pages/Battle/Battle.tsx';
 import Market from './pages/Market/Market.tsx';
+import Stats from './pages/Stats/Stats.tsx';
 import Profile from './pages/Profile/Profile.tsx';
 import Settings from './pages/Settings/Settings.tsx';
 import SignInPage from './pages/Auth/SignIn';
@@ -33,7 +34,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/shop" element={<Shop />} />
           <Route path="/battle" element={<Battle />} />
           <Route path="/market" element={<Market />} />
-          <Route path="/Profile" element={<Profile />} />
+          <Route path="/stats" element={<Stats />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/sign-in" element={<SignInPage />} />
           <Route path="/sign-up" element={<SignUpPage />} />
