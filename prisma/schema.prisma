@@ -52,7 +52,6 @@ model UserStats {
 
   total_currency_spent      Float @default(0)  // CURRENCY_SPENT
   total_currency_gained     Float @default(0)  // CURRENCY_GAINED
-  total_logins              Int   @default(0)  // TOTAL_LOGINS
   total_cards_enhanced      Int   @default(0)  // ENHANCED_CARDS
   highest_battle_rating     Float @default(1000) // BATTLE_RATING
   tournament_wins           Int   @default(0)  // TOURNAMENT_WINS

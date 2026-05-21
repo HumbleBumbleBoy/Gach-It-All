@@ -26,7 +26,6 @@ export default function Stats() {
         {stats && (
           <div>
             <p>Total pulls: {stats.total_pulls}</p>
-            <p>Total pulls: {stats.total_pulls}</p>
             <p>Unique cards: {stats.unique_cards}</p>
             <p>Wins: {stats.wins}</p>
             <p>Losses: {stats.losses}</p>
