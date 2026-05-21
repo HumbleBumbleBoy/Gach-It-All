@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 export default function Stats() {
   const { isSignedIn, user } = useUser();
   const [stats, setStats] = useState<any>(null);
+  const [playTimeUnit, setPlayTimeUnit] = useState('minutes');
 
   useEffect(() => {
     if (isSignedIn && user) {
@@ -16,6 +17,14 @@ export default function Stats() {
         .catch(err => console.error('Failed to fetch stats:', err));
     }
   }, [isSignedIn, user]);
+
+  const getPlayTime = () => {
+    if (!stats) return 0;
+    const minutes = stats.total_play_minutes;
+    if (playTimeUnit === 'hours') return (minutes / 60).toFixed(1);
+    if (playTimeUnit === 'days') return (minutes / 60 / 24).toFixed(1);
+    return minutes;
+  };
 
   return (
     <>
@@ -128,8 +137,19 @@ export default function Stats() {
                   <p className="text-base font-semibold text-white">{stats.login_count}</p>
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-300">Total play minutes:</p>
-                  <p className="text-base font-semibold text-white">{stats.total_play_minutes}</p>
+                  <p className="text-sm font-medium text-gray-300">Total play
+                    <select 
+                      className="bg-gray-700 text-white text-sm rounded px-2 py-1 mx-2"
+                      value={playTimeUnit}
+                      onChange={(e) => setPlayTimeUnit(e.target.value)}
+                    >
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                    </select>
+                  </p>
+                  
+                  <p className="text-base font-semibold text-white">{getPlayTime()}</p>
                 </div>
               </div>
             </div>

@@ -353,22 +353,45 @@ app.get('/api/user/inventory', async (req, res) => {
   res.json({ items: itemsWithDetails });
 });
 
+app.get('/api/cards', async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+    
+    // Use correct model name: cardTemplates (matches your schema)
+    const cardTemplates = await prisma.cardTemplates.findMany();
+    
+    res.json({ items: cardTemplates });
+  } catch (error) {
+    console.error('Error fetching card templates:', error);
+    res.status(500).json({ error: 'Failed to fetch card templates' });
+  }
+});
+
 app.get('/api/user/collection', async (req, res) => {
-  const auth = getAuth(req);
-  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const user = await prisma.user.findUnique({
-    where: { clerkId: auth.userId },
-    select: { id: true }
-  });
-  
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  
-  const items = await prisma.userCards.findMany({
-    where: { user_id: user.id }
-  });
-  
-  res.json({ items });
+  try {
+    const auth = getAuth(req);
+    if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+    
+    const user = await prisma.user.findUnique({
+      where: { clerkId: auth.userId },
+      select: { id: true }
+    });
+    
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    const userCards = await prisma.userCards.findMany({
+      where: { user_id: user.id },
+      include: {
+        cardTemplate: true
+      }
+    });
+    
+    res.json({ items: userCards });
+  } catch (error) {
+    console.error('Error fetching user collection:', error);
+    res.status(500).json({ error: 'Failed to fetch collection' });
+  }
 });
 
 app.get('/api/achievements', async (_req, res) => {

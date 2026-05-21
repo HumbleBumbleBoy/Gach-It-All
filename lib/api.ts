@@ -22,6 +22,13 @@ export const apiClient = {
     return response.json();
   },
 
+  async getCards() {
+    const response = await fetch(`/api/cards`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
+
   async getCollection() {
     const response = await fetch(`/api/user/collection`, {
       credentials: 'include',

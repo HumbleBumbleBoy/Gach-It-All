@@ -121,7 +121,10 @@ export default function Navbar() {
                   className="absolute z-10 mt-10 left-1/2 -translate-x-1/2 max-sm:-translate-x-1/2 max-sm:left-[-20vw] w-screen mx-auto max-w-md sm:max-w-8/9 min-h-[75vh] max-h-[75vh] overflow-y-auto rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
                 >
                   <MenuItem>
+                  <div>
                     <h1 className='text-center text-white text-xl font-bold'>Achievements</h1>
+                    <p className='text-center text-gray-500 text-xs '>Hover over an achievement to see its reward</p>
+                  </div>
                   </MenuItem>
 
                   <MenuItem>
@@ -130,8 +133,16 @@ export default function Navbar() {
                         const progress = getUserProgress(achievement.id);
                         const isCompleted = progress.completed_at !== null;
                         return (
-                          <div key={achievement.id} className={`bg-gray-900 rounded-lg p-2 md:p-4 ${isCompleted ? 'border-2 border-green-400' : ''}`}>
-                            {/* Always side-by-side, never stacked */}
+                          <div key={achievement.id} className={`relative group bg-gray-900 rounded-lg p-2 md:p-4 ${isCompleted ? 'border-2 border-green-400' : ''}`}>
+                            {/* Mobile-friendly tooltip - shows on click/tap */}
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-active:opacity-100 md:group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                              Reward: {achievement.reward_type === "NONE" && "nothing"}
+                              {achievement.reward_type === 'CURRENCY' && `$${achievement.reward_value}`}
+                              {achievement.reward_type === 'CARD' && `Card #${achievement.reward_value}`}
+                              {achievement.reward_type === 'PACK' && `${achievement.reward_value} Pack`}
+                              {achievement.reward_type === 'COSMETIC' && `Cosmetic #${achievement.reward_value}`}
+                            </div>
+                            
                             <div className="flex gap-2 md:gap-4">
                               <div className="w-12 h-12 md:w-16 md:h-16 shrink-0 overflow-hidden rounded-lg">
                                 <img 
@@ -143,7 +154,7 @@ export default function Navbar() {
                               
                               <div className='flex flex-col justify-center min-w-0'>
                                 <h3 className="text-white text-xs md:text-sm font-semibold truncate">{achievement.name}</h3>
-                                <p className="text-gray-400 text-[10px] md:text-xs wrap-break-word"> {achievement.description} </p>
+                                <p className="text-gray-400 text-[10px] md:text-xs break-words">{achievement.description}</p>
                               </div>
                             </div>
 
@@ -158,10 +169,10 @@ export default function Navbar() {
                               </div>
                               <p className="text-gray-400 text-[9px] md:text-xs whitespace-nowrap">
                                 {progress.progress >= (achievement.value_int || achievement.value_float || 100) ? (
-                                    ''
-                                  ) : (
-                                    `${progress.progress}/${achievement.value_int || achievement.value_float || 100}`
-                                  )}
+                                  ''
+                                ) : (
+                                  `${progress.progress}/${achievement.value_int || achievement.value_float || 100}`
+                                )}
                               </p>
                               {isCompleted && <span className="text-green-400 text-xs">✓</span>}
                             </div>

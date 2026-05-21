@@ -97,16 +97,28 @@ enum Enhancement {
 model CardTemplates {
   id        Int     @id @default(autoincrement())
   name      String?
+  description String?
   series    String?
   type      String?
   base_hp   Int
   base_def  Int
   base_atk  Int
   base_price Float
-  rarity    String?
+  rarity    Rarity
   image_url String?
   
   userCards UserCards[]
+}
+
+enum Rarity {
+  COMMON
+  UNCOMMON
+  SPARSE
+  RARE
+  UBER_RARE
+  MYTHICAL
+  LEGENDARY
+  SPECIAL
 }
 
 model Pack {
