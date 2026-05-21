@@ -182,7 +182,12 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
       }
     });
     
-    if (!existing) {
+    if (existing) {
+      await prisma.userAchievement.update({
+        where: { id: existing.id },
+        data: { progress: progress }
+      });
+    } else {
       await prisma.userAchievement.create({
         data: {
           user_id: userId,
@@ -190,7 +195,9 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
           progress: progress
         }
       });
-    } else if (!existing.completed_at && isComplete) {
+    }
+    
+    if (progress >= 100 && existing && !existing.completed_at) {
       await prisma.userAchievement.update({
         where: { id: existing.id },
         data: { completed_at: new Date(), progress: 100 }
@@ -449,11 +456,21 @@ app.post('/api/achievements/check', async (req, res) => {
   res.json({ success: true });
 });
 
+const lastHeartbeat = new Map();
 app.post('/api/heartbeat', async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  
+  const key = `${auth.userId}-${Math.floor(Date.now() / 60000)}`;
+  if (lastHeartbeat.has(key)) {
+    return res.json({ ok: true, duplicate: true });
+  }
+  lastHeartbeat.set(key, true);
+  
+  // Clean old entries
+  setTimeout(() => lastHeartbeat.delete(key), 65000);
   
   const user = await prisma.user.findUnique({
     where: { clerkId: auth.userId },

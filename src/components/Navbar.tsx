@@ -41,6 +41,15 @@ export default function Navbar() {
       apiClient.getUserAchievements()
         .then(data => setUserAchievements(data.userAchievements || []))
         .catch(err => console.error('Failed to fetch user achievements:', err));
+
+      // Refresh achievements every minute to sync with heartbeat
+      const interval = setInterval(() => {
+        apiClient.getUserAchievements()
+          .then(data => setUserAchievements(data.userAchievements || []))
+          .catch(err => console.error('Failed to refresh achievements:', err));
+      }, 60000);
+
+      return () => clearInterval(interval);
     }
   }, [isSignedIn, user]);
 
@@ -121,20 +130,19 @@ export default function Navbar() {
                   className="absolute z-10 mt-10 left-1/2 -translate-x-1/2 max-sm:-translate-x-1/2 max-sm:left-[-20vw] w-screen mx-auto max-w-md sm:max-w-8/9 min-h-[75vh] max-h-[75vh] overflow-y-auto rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
                 >
                   <MenuItem>
-                  <div>
-                    <h1 className='text-center text-white text-xl font-bold'>Achievements</h1>
-                    <p className='text-center text-gray-500 text-xs '>Hover over an achievement to see its reward</p>
-                  </div>
+                    <div>
+                      <h1 className='text-center text-white text-xl font-bold'>Achievements</h1>
+                      <p className='text-center text-gray-500 text-xs '>Hover over an achievement to see its reward</p>
+                    </div>
                   </MenuItem>
 
                   <MenuItem>
-                    <div className=" columns-1 sm:columns-2 gap-6 space-y-6 p-4">
+                    <div className="columns-1 sm:columns-2 gap-6 space-y-6 p-4">
                       {achievements.map((achievement: any) => {
                         const progress = getUserProgress(achievement.id);
                         const isCompleted = progress.completed_at !== null;
                         return (
                           <div key={achievement.id} className={`relative group bg-gray-900 rounded-lg p-2 md:p-4 ${isCompleted ? 'border-2 border-green-400' : ''}`}>
-                            {/* Mobile-friendly tooltip - shows on click/tap */}
                             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-active:opacity-100 md:group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                               Reward: {achievement.reward_type === "NONE" && "nothing"}
                               {achievement.reward_type === 'CURRENCY' && `$${achievement.reward_value}`}
