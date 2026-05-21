@@ -162,7 +162,7 @@ export default function Navbar() {
                               
                               <div className='flex flex-col justify-center min-w-0'>
                                 <h3 className="text-white text-xs md:text-sm font-semibold truncate">{achievement.name}</h3>
-                                <p className="text-gray-400 text-[10px] md:text-xs break-words">{achievement.description}</p>
+                                <p className="text-gray-400 text-[10px] md:text-xs wrap-break-word">{achievement.description}</p>
                               </div>
                             </div>
 
@@ -170,9 +170,7 @@ export default function Navbar() {
                               <div className="flex-1 h-1 md:h-1.5 bg-gray-700 rounded-full overflow-hidden">
                                 <div 
                                   className="h-full bg-green-400 rounded-full transition-all duration-300"
-                                  style={{ 
-                                    width: `${(progress.progress / (achievement.value_int || achievement.value_float || 100)) * 100}%` 
-                                  }}
+                                  style={{ width: `${(progress.progress / (achievement.value_int || achievement.value_float || 100)) * 100}%` }}
                                 />
                               </div>
                               <p className="text-gray-400 text-[9px] md:text-xs whitespace-nowrap">

@@ -158,7 +158,7 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
     let progress = 0;
     
     if (targetValue > 0) {
-      progress = Math.min(Math.floor((currentValue / targetValue) * 100), 100);
+      progress = Math.min(currentValue, targetValue);
       
       switch (ach.comparator) {
         case Comparator.MORE_THAN:
