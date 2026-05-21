@@ -2,7 +2,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Condition, Comparator, DataType, Reward, UserStatus } from "@prisma/client";
+import { PrismaClient, Condition, Comparator, Quality, Reward, Enhancement } from "@prisma/client";
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -38,7 +39,7 @@ app.use((_req, res, next) => {
   next();
 });
 
-// ----------------- helper fucntions
+// ----------------- helper functions
 
 async function grantReward(userId: number, rewardType: Reward, rewardValue: string) {
   switch (rewardType) {
@@ -48,16 +49,44 @@ async function grantReward(userId: number, rewardType: Reward, rewardValue: stri
         data: { currency: { increment: parseFloat(rewardValue) } }
       });
       break;
+      
     case Reward.CARD:
+      const qualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+      const qualityWeights = [20, 30, 30, 15, 5]; // percentages
+      const randomNum = Math.random() * 100;
+      let cumulative = 0;
+      let selectedQuality = qualities[0];
+      for (let i = 0; i < qualityWeights.length; i++) {
+        cumulative += qualityWeights[i];
+        if (randomNum <= cumulative) {
+          selectedQuality = qualities[i];
+          break;
+        }
+      }
+      
+      const enhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+      const enhancementWeights = [85, 10, 4, 1];  // percentages
+      let enhancementCumulative = 0;
+      let selectedEnhancement = enhancements[0];
+      const enhancementRandom = Math.random() * 100;
+      for (let i = 0; i < enhancementWeights.length; i++) {
+        enhancementCumulative += enhancementWeights[i];
+        if (enhancementRandom <= enhancementCumulative) {
+          selectedEnhancement = enhancements[i];
+          break;
+        }
+      }
+      
       await prisma.userCards.create({
         data: {
           user_id: userId,
           card_template_id: parseInt(rewardValue),
-          quality: 'normal',
-          enhancement: 'none'
+          quality: selectedQuality as Quality,
+          enhancement: selectedEnhancement as Enhancement,
         }
       });
       break;
+      
     case Reward.PACK:
       await prisma.userInventory.create({
         data: {
@@ -68,6 +97,7 @@ async function grantReward(userId: number, rewardType: Reward, rewardValue: stri
         }
       });
       break;
+      
     case Reward.COSMETIC:
       await prisma.userInventory.create({
         data: {
@@ -389,6 +419,27 @@ app.post('/api/achievements/check', async (req, res) => {
   await checkAndUpdateAchievements(user.id, condition as Condition);
   
   res.json({ success: true });
+});
+
+app.post('/api/heartbeat', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true }
+  });
+  
+  if (user) {
+    await prisma.userStats.update({
+      where: { user_id: user.id },
+      data: { total_play_minutes: { increment: 1 } }
+    });
+  }
+  
+  res.json({ ok: true });
 });
 
 app.get('/health', (_req, res) => {

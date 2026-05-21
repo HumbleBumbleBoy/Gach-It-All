@@ -1,7 +1,6 @@
 import Navbar from '../../components/Navbar';
 import { useUser } from '@clerk/react';
 import { useEffect, useState } from 'react';
-import { apiClient } from '../../../lib/api';
 
 export default function Stats() {
   const { isSignedIn, user } = useUser();
@@ -21,28 +20,119 @@ export default function Stats() {
   return (
     <>
       <Navbar />
-      <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
-        <h1>Tracker of all the things you did <span>and didn't</span> do!</h1>
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-2xl font-bold text-white mb-6">Your Stats</h1>
         {stats && (
-          <div>
-            <p>Total pulls: {stats.total_pulls}</p>
-            <p>Unique cards: {stats.unique_cards}</p>
-            <p>Wins: {stats.wins}</p>
-            <p>Losses: {stats.losses}</p>
-            <p>Trades completed: {stats.trades_completed}</p>
-            <p>Purchases made: {stats.purchases_made}</p>
-            <p>Total currency spent: ${stats.total_currency_spent}</p>
-            <p>Total currency gained: ${stats.total_currency_gained}</p>
-            <p>Net profit: ${stats.total_currency_gained - stats.total_currency_spent}</p>
-            <p>Login streak: {stats.login_streak} days</p>
-            <p>Total logins: {stats.login_count}</p>
-            <p>Total play minutes: {stats.total_play_minutes}</p>
-            <p>Total cards sold: {stats.total_cards_sold}</p>
-            <p>Consecutive wins: {stats.consecutive_wins}</p>
-            <p>Highest win streak: {stats.highest_win_streak}</p>
-            <p>Consecutive losses: {stats.consecutive_losses}</p>
-            <p>Highest lose streak: {stats.highest_lose_streak}</p>
-            <p>Battle rating: {Math.floor(stats.battle_rating)}</p>
+          <div className="columns-1 sm:columns-2 gap-6 space-y-6">
+            {/* Battle Rating Section */}
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-3 border-b border-gray-700 pb-2">Battle Rating</h2>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-300">Battle rating:</p>
+                <p className="text-base font-semibold text-white">{Math.floor(stats.battle_rating)}</p>
+              </div>
+            </div>
+
+            {/* Cards & Pulls Section */}
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-3 border-b border-gray-700 pb-2">Cards & Pulls</h2>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Total pulls:</p>
+                  <p className="text-base font-semibold text-white">{stats.total_pulls}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Unique cards:</p>
+                  <p className="text-base font-semibold text-white">{stats.unique_cards}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Total cards sold:</p>
+                  <p className="text-base font-semibold text-white">{stats.total_cards_sold}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Battles Section */}
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-3 border-b border-gray-700 pb-2">Battles</h2>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Wins:</p>
+                  <p className="text-base font-semibold text-white">{stats.wins}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Losses:</p>
+                  <p className="text-base font-semibold text-white">{stats.losses}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Consecutive wins:</p>
+                  <p className="text-base font-semibold text-white">{stats.consecutive_wins}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Highest win streak:</p>
+                  <p className="text-base font-semibold text-white">{stats.highest_win_streak}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Consecutive losses:</p>
+                  <p className="text-base font-semibold text-white">{stats.consecutive_losses}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Highest lose streak:</p>
+                  <p className="text-base font-semibold text-white">{stats.highest_lose_streak}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Trading Section */}
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-3 border-b border-gray-700 pb-2">Trading</h2>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-300">Trades completed:</p>
+                <p className="text-base font-semibold text-white">{stats.trades_completed}</p>
+              </div>
+            </div>
+
+            {/* Shop Section */}
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-3 border-b border-gray-700 pb-2">Shop</h2>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Purchases made:</p>
+                  <p className="text-base font-semibold text-white">{stats.purchases_made}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Total currency spent:</p>
+                  <p className="text-base font-semibold text-white">${stats.total_currency_spent}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Total currency gained:</p>
+                  <p className="text-base font-semibold text-white">${stats.total_currency_gained}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Net profit:</p>
+                  <p className="text-base font-semibold text-white">${stats.total_currency_gained - stats.total_currency_spent}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Login Activity Section */}
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-3 border-b border-gray-700 pb-2">Login Activity</h2>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Login streak:</p>
+                  <p className="text-base font-semibold text-white">{stats.login_streak} days</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Total logins:</p>
+                  <p className="text-base font-semibold text-white">{stats.login_count}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-300">Total play minutes:</p>
+                  <p className="text-base font-semibold text-white">{stats.total_play_minutes}</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>

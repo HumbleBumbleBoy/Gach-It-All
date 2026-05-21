@@ -15,6 +15,7 @@ import Settings from './pages/Settings/Settings.tsx';
 import SignInPage from './pages/Auth/SignIn';
 import SignUpPage from './pages/Auth/SignUp';
 import { ClerkProvider } from '@clerk/react';
+import Heartbeat from './components/Heartbeat.tsx';
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -25,6 +26,7 @@ createRoot(document.getElementById('root')!).render(
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
     >
+      <Heartbeat />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<App />} />

@@ -64,19 +64,34 @@ model UserStats {
 }
 
 model UserCards {
-  id               Int      @id @default(autoincrement())
+  id               Int         @id @default(autoincrement())
   user_id          Int
   card_template_id Int
-  quality          String
-  enhancement      String
-  acquired_at      DateTime @default(now())
-  is_favourited    Boolean  @default(false)
-  kills            Int      @default(0)
-  deaths           Int      @default(0)
-  sold_amount      Int?     @default(0)
+  quality          Quality     @default(REGULAR)
+  enhancement      Enhancement @default(BASIC)
+  acquired_at      DateTime    @default(now())
+  is_favourited    Boolean     @default(false)
+  kills            Int         @default(0)
+  deaths           Int         @default(0)
+  sold_amount      Int?        @default(0)
   
   user         User          @relation(fields: [user_id], references: [id])
   cardTemplate CardTemplates @relation(fields: [card_template_id], references: [id])
+}
+
+enum Quality {
+  TARNISHED
+  POOR
+  REGULAR
+  GOOD
+  CRISP
+}
+
+enum Enhancement {
+  BASIC
+  FOILED
+  SHINY
+  SIGNED
 }
 
 model CardTemplates {
