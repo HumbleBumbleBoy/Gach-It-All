@@ -7,9 +7,7 @@ export default function Heartbeat() {
   useEffect(() => {
     if (!isSignedIn) return;
 
-    console.log("started counting");
     const interval = setInterval(() => {
-      console.log("a minute passed");
       fetch('/api/heartbeat', { method: 'POST', credentials: 'include' });
     }, 60000);
 

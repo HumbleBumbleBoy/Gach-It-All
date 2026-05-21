@@ -118,22 +118,22 @@ export default function Navbar() {
 
                 <MenuItems
                   transition
-                  className="absolute z-10 mt-10 left-1/2 -translate-x-1/2 min-w-3/4 max-w-2/3 min-h-[75vh] max-h-[75vh] overflow-y-auto rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
+                  className="absolute z-10 mt-10 left-1/2 -translate-x-1/2 max-sm:-translate-x-1/2 max-sm:left-[-20vw] w-screen mx-auto max-w-md sm:max-w-8/9 min-h-[75vh] max-h-[75vh] overflow-y-auto rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
                 >
                   <MenuItem>
                     <h1 className='text-center text-white text-xl font-bold'>Achievements</h1>
                   </MenuItem>
 
                   <MenuItem>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 md:gap-4 md:p-4">
+                    <div className=" columns-1 sm:columns-2 gap-6 space-y-6 p-4">
                       {achievements.map((achievement: any) => {
                         const progress = getUserProgress(achievement.id);
                         const isCompleted = progress.completed_at !== null;
                         return (
-                          <div key={achievement.id} className="bg-gray-900 rounded-lg p-3 md:p-4">
-                            {/* Mobile: stacked layout, Desktop: side-by-side */}
-                            <div className="flex flex-col sm:flex-row sm:gap-4 gap-2">
-                              <div className="w-16 h-16 mx-auto sm:mx-0 overflow-hidden rounded-lg">
+                          <div key={achievement.id} className={`bg-gray-900 rounded-lg p-2 md:p-4 ${isCompleted ? 'border-2 border-green-400' : ''}`}>
+                            {/* Always side-by-side, never stacked */}
+                            <div className="flex gap-2 md:gap-4">
+                              <div className="w-12 h-12 md:w-16 md:h-16 shrink-0 overflow-hidden rounded-lg">
                                 <img 
                                   src={achievement.image_url} 
                                   alt={achievement.name} 
@@ -141,14 +141,14 @@ export default function Navbar() {
                                 />
                               </div>
                               
-                              <div className='flex flex-col justify-center text-center sm:text-left'>
-                                <h3 className="text-white text-sm font-semibold">{achievement.name}</h3>
-                                <p className="text-gray-400 text-xs mt-0.5">{achievement.description}</p>
+                              <div className='flex flex-col justify-center min-w-0'>
+                                <h3 className="text-white text-xs md:text-sm font-semibold truncate">{achievement.name}</h3>
+                                <p className="text-gray-400 text-[10px] md:text-xs wrap-break-word"> {achievement.description} </p>
                               </div>
                             </div>
 
-                            <div className="mt-3 flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div className="mt-2 flex items-center gap-1 md:gap-2">
+                              <div className="flex-1 h-1 md:h-1.5 bg-gray-700 rounded-full overflow-hidden">
                                 <div 
                                   className="h-full bg-green-400 rounded-full transition-all duration-300"
                                   style={{ 
@@ -156,10 +156,14 @@ export default function Navbar() {
                                   }}
                                 />
                               </div>
-                              <p className="text-gray-400 text-xs whitespace-nowrap">
-                                {progress.progress} / {achievement.value_int || achievement.value_float || 100}
+                              <p className="text-gray-400 text-[9px] md:text-xs whitespace-nowrap">
+                                {progress.progress >= (achievement.value_int || achievement.value_float || 100) ? (
+                                    ''
+                                  ) : (
+                                    `${progress.progress}/${achievement.value_int || achievement.value_float || 100}`
+                                  )}
                               </p>
-                              {isCompleted && <span className="text-green-400 text-xs whitespace-nowrap">✓</span>}
+                              {isCompleted && <span className="text-green-400 text-xs">✓</span>}
                             </div>
                           </div>
                         );

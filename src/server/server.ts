@@ -147,6 +147,9 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
       case Condition.TRADES_COMPLETED:
         currentValue = user.userStats.trades_completed;
         break;
+      case Condition.PLAY_TIME:
+        currentValue = user.userStats.total_play_minutes;
+        break;
       default:
         currentValue = 0;
     }
@@ -289,6 +292,8 @@ app.post('/api/user-login', async (req, res) => {
         battle_rating: 1000
       }
     });
+
+    await checkAndUpdateAchievements(dbUser.id, Condition.PLAY_TIME); // update time achievements on login
     
     res.json({ message: 'Verified!', user: dbUser });
   } catch (error) {
@@ -437,6 +442,8 @@ app.post('/api/heartbeat', async (req, res) => {
       where: { user_id: user.id },
       data: { total_play_minutes: { increment: 1 } }
     });
+
+    checkAndUpdateAchievements(user.id, Condition.PLAY_TIME)
   }
   
   res.json({ ok: true });
