@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Condition, Comparator, Quality, Reward, Enhancement } from "@prisma/client";
+import { PrismaClient, Condition, Comparator, Quality, Reward, Enhancement, UserStatus } from "@prisma/client";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,10 +44,7 @@ app.use((_req, res, next) => {
 async function grantReward(userId: number, rewardType: Reward, rewardValue: string) {
   switch (rewardType) {
     case Reward.CURRENCY:
-      await prisma.user.update({
-        where: { id: userId },
-        data: { currency: { increment: parseFloat(rewardValue) } }
-      });
+      await updateCurrency(userId, parseFloat(rewardValue), 'gain');
       break;
       
     case Reward.CARD:
@@ -108,6 +105,36 @@ async function grantReward(userId: number, rewardType: Reward, rewardValue: stri
         }
       });
       break;
+      
+    case Reward.STATUS:
+      await prisma.user.update({
+        where: { id: userId },
+        data: { user_status: rewardValue as UserStatus }
+      });
+      break;
+  }
+}
+
+async function updateCurrency(userId: number, amount: number, type: 'gain' | 'spend') {
+  if (type === 'gain') {
+    await prisma.userStats.update({
+      where: { user_id: userId },
+      data: { total_currency_gained: { increment: amount } }
+    });
+    // Update User balance
+    await prisma.user.update({
+      where: { id: userId },
+      data: { currency: { increment: amount } }
+    });
+  } else {
+    await prisma.userStats.update({
+      where: { user_id: userId },
+      data: { total_currency_spent: { increment: amount } }
+    });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { currency: { decrement: amount } }
+    });
   }
 }
 
@@ -197,12 +224,21 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
       });
     }
     
-    if (progress >= 100 && existing && !existing.completed_at) {
+    if (progress >= targetValue && existing && !existing.completed_at) {
       await prisma.userAchievement.update({
         where: { id: existing.id },
         data: { completed_at: new Date(), progress: 100 }
       });
       await grantReward(userId, ach.reward_type, ach.reward_value);
+      
+      // pop up you got an achievement
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { clerkId: true }
+      });
+      if (user) {
+        sendAchievementNotification(user.clerkId, ach.name, `${ach.reward_type}: ${ach.reward_value}`);
+      }
     }
   }
 }
@@ -301,6 +337,7 @@ app.post('/api/user-login', async (req, res) => {
     });
 
     await checkAndUpdateAchievements(dbUser.id, Condition.PLAY_TIME); // update time achievements on login
+    await checkAndUpdateAchievements(dbUser.id, Condition.TOTAL_LOGINS);  // update login achievements on login
     
     res.json({ message: 'Verified!', user: dbUser });
   } catch (error) {
@@ -319,6 +356,28 @@ app.get('/api/user/currency', async (req, res) => {
   });
   
   res.json({ currency: user?.currency ?? 0 });
+});
+
+app.post('/api/user/currency', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { amount } = req.body; // positive = gain, negative = spend
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true }
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  if (amount > 0) {
+    await updateCurrency(user.id, amount, 'gain');
+  } else if (amount < 0) {
+    await updateCurrency(user.id, Math.abs(amount), 'spend');
+  }
+  
+  res.json({ success: true, amount });
 });
 
 app.get('/api/user/inventory', async (req, res) => {
@@ -405,6 +464,32 @@ app.get('/api/achievements', async (_req, res) => {
   const achievements = await prisma.achievement.findMany();
   res.json({ achievements });
 });
+
+const clients = new Map<string, any>(); // active connections
+
+app.get('/api/events/achievements', (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+  
+  clients.set(auth.userId, res);
+  
+  req.on('close', () => {
+    clients.delete(auth.userId);
+  });
+});
+
+function sendAchievementNotification(userId: string, achievementName: string, reward: string) {
+  const client = clients.get(userId);
+  if (client) {
+    client.write(`data: ${JSON.stringify({ achievement: achievementName, reward })}\n\n`);
+  }
+}
 
 app.get('/api/user/achievements', async (req, res) => {
   const auth = getAuth(req);

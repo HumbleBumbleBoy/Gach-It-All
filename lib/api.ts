@@ -7,7 +7,17 @@ export const apiClient = {
     });
     return response.json();
   },
-  
+
+  async updateCurrency(amount: number) {
+    const response = await fetch(`/api/user/currency`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ amount })
+    });
+    return response.json();
+  },
+
   async getCurrency() {
     const response = await fetch(`/api/user/currency`, {
       credentials: 'include',
@@ -48,5 +58,22 @@ export const apiClient = {
       credentials: 'include',
     });
     return response.json();
+  },
+
+  async getUserStats() {
+    const response = await fetch(`/api/user/stats`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
+
+  async refreshAll() {      // update this as i go
+    const [currency, stats, achievements, userAchievements] = await Promise.all([
+      this.getCurrency(),
+      this.getUserStats(),
+      this.getAchievements(),
+      this.getUserAchievements()
+    ]);
+    return { currency, stats, achievements, userAchievements };
   },
 };
