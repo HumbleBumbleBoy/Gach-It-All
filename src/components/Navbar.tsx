@@ -223,7 +223,7 @@ export default function Navbar() {
                                   {isCompleted ? (
                                     ''
                                   ) : (
-                                    `${progress.progress}/${achievement.value_int || achievement.value_float || 100}`
+                                    `${progress.progress}%`
                                   )}
                                 </p>
                                 {isCompleted && <span className="text-green-400 text-xs">✓</span>}

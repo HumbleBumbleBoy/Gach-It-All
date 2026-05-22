@@ -197,6 +197,12 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
         case Comparator.EQUAL:
           isComplete = currentValue === targetValue;
           break;
+        case Comparator.MORE_OR_EQUAL:
+          isComplete = currentValue >= targetValue;
+          break;
+        case Comparator.LESS_OR_EQUAL:
+          isComplete = currentValue <= targetValue;
+          break;
       }
     }
     
@@ -424,7 +430,6 @@ app.get('/api/cards', async (req, res) => {
     const auth = getAuth(req);
     if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
     
-    // Use correct model name: cardTemplates (matches your schema)
     const cardTemplates = await prisma.cardTemplates.findMany();
     
     res.json({ items: cardTemplates });

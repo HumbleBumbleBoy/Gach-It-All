@@ -192,8 +192,10 @@ model Achievement {
 
 enum Comparator {
   MORE_THAN
-  EQUAL
   LESS_THAN
+  EQUAL
+  MORE_OR_EQUAL
+  LESS_OR_EQUAL
 }
 
 enum Condition {
