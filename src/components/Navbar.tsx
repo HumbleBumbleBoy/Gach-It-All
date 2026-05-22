@@ -57,30 +57,45 @@ export default function Navbar() {
   useEffect(() => {
     if (!isSignedIn) return;
     
-    const eventSource = new EventSource('/api/events/achievements');
+    let eventSource: EventSource | null = null;
     
-    eventSource.onmessage = async (event) => {
-      const data = JSON.parse(event.data);
-      console.log('Achievement unlocked:', data);
-      setToast({ show: true, achievement: data.achievement, reward: data.reward });
+    const connect = () => {
+      eventSource = new EventSource('/api/events/achievements');
       
-      // Refresh all data after achievement
-      const [newCurrency, newStats] = await Promise.all([
-        apiClient.getCurrency(),
-        apiClient.getUserStats()
-      ]);
+      eventSource.onopen = () => {
+        console.log('SSE connected');
+      };
       
-      setCurrency(newCurrency.currency ?? 0);
+      eventSource.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        console.log('Achievement unlocked:', data);
+        setToast({ show: true, achievement: data.achievement, reward: data.reward });
+        
+        const [newCurrency] = await Promise.all([
+          apiClient.getCurrency(),
+          apiClient.getUserStats()
+        ]);
+        
+        setCurrency(newCurrency.currency ?? 0);
+        
+        setTimeout(() => setToast(null), 5000);
+      };
       
-      setTimeout(() => setToast(null), 5000);
+      eventSource.onerror = (err) => {
+        console.error('SSE error:', err);
+        eventSource?.close();
+        // Try to reconnect after 5 seconds
+        setTimeout(connect, 5000);
+      };
     };
     
-    eventSource.onerror = (err) => {
-      console.error('SSE error:', err);
-      eventSource.close();
-    };
+    connect();
     
-    return () => eventSource.close();
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
   }, [isSignedIn]);
 
   if (!isLoaded) {
