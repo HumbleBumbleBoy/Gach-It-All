@@ -216,14 +216,14 @@ export default function Navbar() {
                                 <div className="flex-1 h-1 md:h-1.5 bg-gray-700 rounded-full overflow-hidden">
                                   <div 
                                     className="h-full bg-green-400 rounded-full transition-all duration-300"
-                                    style={{ width: `${(progress.progress / (achievement.value_int || achievement.value_float || 100)) * 100}%` }}
+                                    style={{ width: `${Math.min(100, (progress.progress / (achievement.value_int || achievement.value_float || 100)) * 100)}%` }}
                                   />
                                 </div>
                                 <p className="text-gray-400 text-[9px] md:text-xs whitespace-nowrap">
                                   {isCompleted ? (
                                     ''
                                   ) : (
-                                    `${progress.progress}%`
+                                    `${progress.progress}/${achievement.value_int || achievement.value_float || 100}`
                                   )}
                                 </p>
                                 {isCompleted && <span className="text-green-400 text-xs">✓</span>}

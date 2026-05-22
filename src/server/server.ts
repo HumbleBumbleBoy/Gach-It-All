@@ -344,6 +344,27 @@ app.post('/api/user-login', async (req, res) => {
 
     await checkAndUpdateAchievements(dbUser.id, Condition.PLAY_TIME); // update time achievements on login
     await checkAndUpdateAchievements(dbUser.id, Condition.TOTAL_LOGINS);  // update login achievements on login
+
+    // Check if user already has the badge
+    const hasBadge = await prisma.userInventory.findFirst({
+      where: {
+        user_id: dbUser.id,
+        item_type: 'ITEM',
+        reference_id: 1
+      }
+    });
+
+    if (!hasBadge) {
+      await prisma.userInventory.create({
+        data: {
+          user_id: dbUser.id,
+          item_type: 'ITEM',
+          reference_id: 1,
+          quantity: 1,
+          acquired_at: dbUser.created_at
+        }
+      });
+    }
     
     res.json({ message: 'Verified!', user: dbUser });
   } catch (error) {
@@ -406,19 +427,20 @@ app.get('/api/user/inventory', async (req, res) => {
     if (inv.item_type === 'ITEM') {
       details = await prisma.item.findUnique({
         where: { id: inv.reference_id },
-        select: { name: true, image_url: true }
+        select: { name: true, image_url: true, description: true }
       });
     } else if (inv.item_type === 'PACK') {
       details = await prisma.pack.findUnique({
         where: { id: inv.reference_id },
-        select: { name: true, image_url: true }
+        select: { name: true, image_url: true, description: true }
       });
     }
     
     return {
       ...inv,
       name: details?.name || 'Unknown',
-      image_url: details?.image_url
+      image_url: details?.image_url,
+      description: details?.description || ''
     };
   }));
   
