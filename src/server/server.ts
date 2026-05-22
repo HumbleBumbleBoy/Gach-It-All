@@ -350,7 +350,7 @@ app.post('/api/user-login', async (req, res) => {
       where: {
         user_id: dbUser.id,
         item_type: 'ITEM',
-        reference_id: 1
+        reference_id: 5
       }
     });
 
@@ -359,7 +359,7 @@ app.post('/api/user-login', async (req, res) => {
         data: {
           user_id: dbUser.id,
           item_type: 'ITEM',
-          reference_id: 1,
+          reference_id: 5,
           quantity: 1,
           acquired_at: dbUser.created_at
         }
