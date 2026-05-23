@@ -98,8 +98,8 @@ model CardTemplates {
   id        Int     @id @default(autoincrement())
   name      String?
   description String?
-  series    String?
-  type      String?
+  series    Series?
+  type      Type?
   base_hp   Int
   base_def  Int
   base_atk  Int
@@ -108,6 +108,16 @@ model CardTemplates {
   image_url String?
   
   userCards UserCards[]
+}
+
+enum Series { // add stuff as i go
+  CARD_GAMES
+}
+
+enum Type { // add stuff as i go
+  DIGITAL
+  VIDEO_GAME
+  GAME
 }
 
 enum Rarity {
@@ -137,6 +147,17 @@ model Pack {
   mythical_rate     Float   @default(1.2)
   legendary_rate    Float   @default(0.4)
   special_rate      Float   @default(0)
+
+  tarnished_rate    Float @default(20)
+  poor_rate         Float @default(30)
+  regular_rate      Float @default(30)
+  good_rate         Float @default(15)
+  crisp_rate        Float @default(5)
+
+  basic_rate        Float @default(85)
+  foiled_rate       Float @default(10)
+  shiny_rate        Float @default(4)
+  signed_rate       Float @default(1)
   
   included_series     Json?
   excluded_series     Json?

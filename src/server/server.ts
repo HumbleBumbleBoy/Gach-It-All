@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Condition, Comparator, Quality, Reward, Enhancement, UserStatus } from "@prisma/client";
+import type { Pack, CardTemplates } from "@prisma/client";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -115,25 +116,26 @@ async function grantReward(userId: number, rewardType: Reward, rewardValue: stri
   }
 }
 
-async function updateCurrency(userId: number, amount: number, type: 'gain' | 'spend') {
+async function updateCurrency(userId: number, amount: number, type: 'gain' | 'spend'): Promise<void> {
+  const roundedAmount = roundCurrency(amount);
+  
   if (type === 'gain') {
     await prisma.userStats.update({
       where: { user_id: userId },
-      data: { total_currency_gained: { increment: amount } }
+      data: { total_currency_gained: { increment: roundedAmount } }
     });
-    // Update User balance
     await prisma.user.update({
       where: { id: userId },
-      data: { currency: { increment: amount } }
+      data: { currency: { increment: roundedAmount } }
     });
   } else {
     await prisma.userStats.update({
       where: { user_id: userId },
-      data: { total_currency_spent: { increment: amount } }
+      data: { total_currency_spent: { increment: roundedAmount } }
     });
     await prisma.user.update({
       where: { id: userId },
-      data: { currency: { decrement: amount } }
+      data: { currency: { decrement: roundedAmount } }
     });
   }
 }
@@ -176,6 +178,34 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
         break;
       case Condition.PLAY_TIME:
         currentValue = user.userStats.total_play_minutes;
+        break;
+      case Condition.CARDS_SOLD:
+        currentValue = user.userStats.total_cards_sold;
+        break;
+      case Condition.CARDS_COLLECTED:
+        currentValue = user.userStats.unique_cards;
+        break;
+      case Condition.CURRENCY_SPENT:
+        currentValue = user.userStats.total_currency_spent;
+        break;
+      case Condition.CURRENCY_GAINED:
+        currentValue = user.userStats.total_currency_gained;
+        break;
+      case Condition.PURCHASES_MADE:
+        currentValue = user.userStats.purchases_made;
+        break;
+      case Condition.ENHANCED_CARDS:
+        // Count cards with non-BASIC enhancement
+        const enhancedCards = await prisma.userCards.count({
+          where: { user_id: userId, enhancement: { not: 'BASIC' } }
+        });
+        currentValue = enhancedCards;
+        break;
+      case Condition.CARDS_COLLECTED:
+        currentValue = user.userStats.unique_cards;
+        break;
+      case Condition.CARDS_SOLD:
+        currentValue = user.userStats.total_cards_sold;
         break;
       default:
         currentValue = 0;
@@ -247,6 +277,10 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
       }
     }
   }
+}
+
+function roundCurrency(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 // -------------- API Routes 
@@ -567,6 +601,317 @@ app.post('/api/achievements/check', async (req, res) => {
   
   res.json({ success: true });
 });
+
+app.post('/api/cards/sell', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { cardId } = req.body;
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true, currency: true }
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  const card = await prisma.userCards.findFirst({
+    where: { id: cardId, user_id: user.id },
+    include: { cardTemplate: true }
+  });
+  
+  if (!card) return res.status(404).json({ error: 'Card not found' });
+
+  const qualityMultipliers = { TARNISHED: 0.3, POOR: 0.66, REGULAR: 1, GOOD: 1.25, CRISP: 1.5 };
+  const enhancementMultipliers = { BASIC: 1, FOILED: 1.25, SHINY: 1.5, SIGNED: 2 };
+  
+  const qualityMult = qualityMultipliers[card.quality] || 1;
+  const enhancementMult = enhancementMultipliers[card.enhancement] || 1;
+  const cardValue = card.cardTemplate.base_price * qualityMult * enhancementMult;
+  const sellPrice = roundCurrency(cardValue * 0.8);
+  
+  await updateCurrency(user.id, sellPrice, 'gain');
+  
+  // Update sold cards count
+  await prisma.userStats.update({
+    where: { user_id: user.id },
+    data: { total_cards_sold: { increment: 1 } }
+  });
+  
+  await prisma.userCards.delete({ where: { id: cardId } });
+  
+  const uniqueCardTemplates = await prisma.userCards.findMany({
+    where: { user_id: user.id },
+    select: { card_template_id: true },
+    distinct: ['card_template_id']
+  });
+  
+  await prisma.userStats.update({
+    where: { user_id: user.id },
+    data: { unique_cards: uniqueCardTemplates.length }
+  });
+  
+  await checkAndUpdateAchievements(user.id, Condition.CARDS_SOLD);
+  await checkAndUpdateAchievements(user.id, Condition.CARDS_COLLECTED);
+  
+  const updatedUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { currency: true }
+  });
+  
+  res.json({ success: true, sellPrice, newCurrency: updatedUser?.currency });
+});
+
+app.get('/api/packs', async (_req, res) => {
+  try {
+    const packs = await prisma.pack.findMany({
+      where: { is_available: true },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        image_url: true,
+        cards_count: true
+      }
+    });
+    res.json({ packs });
+  } catch (error) {
+    console.error('Error fetching packs:', error);
+    res.status(500).json({ error: 'Failed to fetch packs' });
+  }
+});
+
+app.post('/api/gacha/pack', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { packId } = req.body;
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true, currency: true }
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  const pack = await prisma.pack.findUnique({
+    where: { id: packId, is_available: true }
+  });
+  
+  if (!pack) return res.status(404).json({ error: 'Pack not found' });
+  
+  // Check if user has pack in inventory or can buy
+  if (pack.price > 0) {
+    const inventoryPack = await prisma.userInventory.findFirst({
+      where: {
+        user_id: user.id,
+        item_type: 'PACK',
+        reference_id: packId,
+        quantity: { gt: 0 }
+      }
+    });
+    
+    if (!inventoryPack && user.currency < pack.price) {
+      return res.status(400).json({ error: 'Insufficient currency' });
+    }
+    
+    if (inventoryPack) {
+      // Use from inventory
+      if (inventoryPack.quantity === 1) {
+        await prisma.userInventory.delete({ where: { id: inventoryPack.id } });
+      } else {
+        await prisma.userInventory.update({
+          where: { id: inventoryPack.id },
+          data: { quantity: { decrement: 1 } }
+        });
+      }
+    } else {
+
+      await updateCurrency(user.id, pack.price, 'spend');
+    }
+  }
+
+  const cards = await generatePackCards(pack, user.id);
+
+  await prisma.userStats.update({
+    where: { user_id: user.id },
+    data: { 
+      total_pulls: { increment: 1 }  // 1 pack
+    }
+  });
+  
+  // Check unique cards count
+  const uniqueCardTemplates = await prisma.userCards.findMany({
+    where: { user_id: user.id },
+    select: { card_template_id: true },
+    distinct: ['card_template_id']
+  });
+  
+  await prisma.userStats.update({
+    where: { user_id: user.id },
+    data: { unique_cards: uniqueCardTemplates.length }
+  });
+  
+  await checkAndUpdateAchievements(user.id, Condition.PACKS_OPENED);
+  await checkAndUpdateAchievements(user.id, Condition.CARDS_COLLECTED);
+  
+  res.json({ success: true, cards, packName: pack.name });
+});
+
+async function generatePackCards(pack: Pack, userId: number) {
+  const pulledCards: any[] = [];
+  
+  // Get all card templates that match the pack criteria
+  let availableCards = await prisma.cardTemplates.findMany();
+  
+  // Filter by included criteria
+  if (pack.included_series && Array.isArray(pack.included_series)) {
+    const includedSeries = pack.included_series as any[];
+    availableCards = availableCards.filter(card => 
+      includedSeries.includes(card.series)
+    );
+  }
+
+  if (pack.included_types && Array.isArray(pack.included_types)) {
+    const includedTypes = pack.included_types as any[];
+    availableCards = availableCards.filter(card => 
+      includedTypes.includes(card.type)
+    );
+  }
+
+  if (pack.excluded_series && Array.isArray(pack.excluded_series)) {
+    const excludedSeries = pack.excluded_series as any[];
+    availableCards = availableCards.filter(card => 
+      !excludedSeries.includes(card.series)
+    );
+  }
+  
+  // Handle guaranteed cards
+  const guaranteedCards: CardTemplates[] = [];
+  if (pack.guaranteed_card_ids && Array.isArray(pack.guaranteed_card_ids) && pack.guaranteed_count > 0) {
+    const guaranteedIds = pack.guaranteed_card_ids as number[];
+    for (let i = 0; i < Math.min(pack.guaranteed_count, guaranteedIds.length); i++) {
+      const guaranteedCard = await prisma.cardTemplates.findUnique({
+        where: { id: guaranteedIds[i] }
+      });
+      if (guaranteedCard) {
+        guaranteedCards.push(guaranteedCard);
+      }
+    }
+  }
+  
+  // Calculate remaining cards to pull
+  const remainingCards = pack.cards_count - guaranteedCards.length;
+  
+  // Roll for remaining cards
+  for (let i = 0; i < remainingCards; i++) {
+    const rarity = determineRarity(pack);
+    const cardsOfRarity = availableCards.filter(card => card.rarity === rarity);
+    
+    if (cardsOfRarity.length === 0) {
+      // Fallback to any card if no cards of that rarity exist
+      const randomCard = availableCards[Math.floor(Math.random() * availableCards.length)];
+      const cardWithQuality = await applyQualityAndEnhancement(randomCard, pack, userId);
+      pulledCards.push(cardWithQuality);
+    } else {
+      const randomCard = cardsOfRarity[Math.floor(Math.random() * cardsOfRarity.length)];
+      const cardWithQuality = await applyQualityAndEnhancement(randomCard, pack, userId);
+      pulledCards.push(cardWithQuality);
+    }
+  }
+  
+  // Add guaranteed cards (also apply quality/enhancement)
+  for (const guaranteedCard of guaranteedCards) {
+    const cardWithQuality = await applyQualityAndEnhancement(guaranteedCard, pack, userId);
+    pulledCards.push(cardWithQuality);
+  }
+  
+  return pulledCards;
+}
+
+function determineRarity(pack: Pack): string {
+  const random = Math.random() * 100;
+  let cumulative = 0;
+  
+  const rarities = [
+    { name: 'COMMON', rate: pack.common_rate },
+    { name: 'UNCOMMON', rate: pack.uncommon_rate },
+    { name: 'SPARSE', rate: pack.sparse_rate },
+    { name: 'RARE', rate: pack.rare_rate },
+    { name: 'UBER_RARE', rate: pack.uber_rare_rate },
+    { name: 'MYTHICAL', rate: pack.mythical_rate },
+    { name: 'LEGENDARY', rate: pack.legendary_rate },
+    { name: 'SPECIAL', rate: pack.special_rate }
+  ];
+  
+  for (const rarity of rarities) {
+    cumulative += rarity.rate;
+    if (random <= cumulative) {
+      return rarity.name;
+    }
+  }
+  
+  return 'COMMON';
+}
+
+async function applyQualityAndEnhancement(card: CardTemplates, pack: Pack, userId: number) {
+  // Determine quality
+  const qualityRandom = Math.random() * 100;
+  let quality: Quality = Quality.REGULAR;
+  let qualityCumulative = 0;
+  
+  const qualities = [
+    { name: Quality.TARNISHED, rate: pack.tarnished_rate },
+    { name: Quality.POOR, rate: pack.poor_rate },
+    { name: Quality.REGULAR, rate: pack.regular_rate },
+    { name: Quality.GOOD, rate: pack.good_rate },
+    { name: Quality.CRISP, rate: pack.crisp_rate }
+  ];
+  
+  for (const q of qualities) {
+    qualityCumulative += q.rate;
+    if (qualityRandom <= qualityCumulative) {
+      quality = q.name;
+      break;
+    }
+  }
+  
+  // Determine enhancement
+  const enhancementRandom = Math.random() * 100;
+  let enhancement: Enhancement = Enhancement.BASIC;
+  let enhancementCumulative = 0;
+  
+  const enhancements = [
+    { name: Enhancement.BASIC, rate: pack.basic_rate },
+    { name: Enhancement.FOILED, rate: pack.foiled_rate },
+    { name: Enhancement.SHINY, rate: pack.shiny_rate },
+    { name: Enhancement.SIGNED, rate: pack.signed_rate }
+  ];
+  
+  for (const e of enhancements) {
+    enhancementCumulative += e.rate;
+    if (enhancementRandom <= enhancementCumulative) {
+      enhancement = e.name;
+      break;
+    }
+  }
+  
+  // Save to database
+  const userCard = await prisma.userCards.create({
+    data: {
+      user_id: userId,
+      card_template_id: card.id,
+      quality: quality,
+      enhancement: enhancement,
+    },
+    include: {
+      cardTemplate: true
+    }
+  });
+  
+  return userCard;
+}
 
 const lastHeartbeat = new Map();
 app.post('/api/heartbeat', async (req, res) => {

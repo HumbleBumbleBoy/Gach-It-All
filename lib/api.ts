@@ -76,4 +76,31 @@ export const apiClient = {
     ]);
     return { currency, stats, achievements, userAchievements };
   },
+
+  async getPacks() {
+    const response = await fetch(`/api/packs`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
+
+  async openPack(packId: number) {
+    const response = await fetch(`/api/gacha/pack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ packId })
+    });
+    return response.json();
+  },
+
+  async sellCard(cardId: number) {
+    const response = await fetch(`/api/cards/sell`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ cardId })
+    });
+    return response.json();
+  },
 };

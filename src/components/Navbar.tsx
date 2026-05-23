@@ -1,4 +1,3 @@
-// components/Navbar.tsx
 import { Show, SignInButton, SignUpButton, UserAvatar, useClerk, useUser } from '@clerk/react';
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { Bars3Icon, TrophyIcon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -24,7 +23,7 @@ export default function Navbar() {
   const location = useLocation();
   const { signOut } = useClerk();
   const { isLoaded, isSignedIn, user } = useUser();
-  const [currency, setCurrency] = useState(0);
+  const [currency, setCurrency] = useState<number>(0);
   const [achievements, setAchievements] = useState<any[]>([]);
   const [userAchievements, setUserAchievements] = useState<any[]>([]);
   const [toast, setToast] = useState<{ show: boolean; achievement: string; reward: string; image?: string } | null>(null);
@@ -98,6 +97,17 @@ export default function Navbar() {
     };
   }, [isSignedIn]);
 
+  useEffect(() => {
+    const handleCurrencyUpdate = () => {
+      if (isSignedIn && user) {
+        apiClient.getCurrency().then(data => setCurrency(data.currency ?? 0));
+      }
+    };
+    
+    window.addEventListener('currency-updated', handleCurrencyUpdate);
+    return () => window.removeEventListener('currency-updated', handleCurrencyUpdate);
+  }, [isSignedIn, user]);
+
   if (!isLoaded) {
     return <LoadingSkeleton />;
   }
@@ -162,7 +172,7 @@ export default function Navbar() {
             <div className="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
               <Show when="signed-in">
                 <div className='mr-2'>
-                  <span className='select-none'>${currency}</span>
+                  <span className='select-none'>${currency.toFixed(2)}</span>
                 </div>
                 <Menu as="div">
                   <MenuButton className="relative rounded-full p-1 text-gray-400 hover:text-white focus:outline-2 focus:outline-offset-2 focus:outline-indigo-500">
