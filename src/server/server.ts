@@ -154,7 +154,7 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
   
   for (const ach of achievements) {
     let currentValue: number = 0;
-    let targetValue: number = ach.value_int || ach.value_float || 0;
+    let targetValue: number = ach.value_int ?? ach.value_float ?? 0;
     
     // Get current value based on condition
     switch (ach.condition) {
@@ -182,9 +182,6 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
       case Condition.CARDS_SOLD:
         currentValue = user.userStats.total_cards_sold;
         break;
-      case Condition.CARDS_COLLECTED:
-        currentValue = user.userStats.unique_cards;
-        break;
       case Condition.CURRENCY_SPENT:
         currentValue = user.userStats.total_currency_spent;
         break;
@@ -195,45 +192,35 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
         currentValue = user.userStats.purchases_made;
         break;
       case Condition.ENHANCED_CARDS:
-        // Count cards with non-BASIC enhancement
         const enhancedCards = await prisma.userCards.count({
           where: { user_id: userId, enhancement: { not: 'BASIC' } }
         });
         currentValue = enhancedCards;
-        break;
-      case Condition.CARDS_COLLECTED:
-        currentValue = user.userStats.unique_cards;
-        break;
-      case Condition.CARDS_SOLD:
-        currentValue = user.userStats.total_cards_sold;
         break;
       default:
         currentValue = 0;
     }
 
     let isComplete = false;
-    let progress = 0;
+    let progress = Math.min(currentValue, targetValue);
     
-    if (targetValue > 0) {
-      progress = Math.min(currentValue, targetValue);
-      
-      switch (ach.comparator) {
-        case Comparator.MORE_THAN:
-          isComplete = currentValue > targetValue;
-          break;
-        case Comparator.LESS_THAN:
-          isComplete = currentValue < targetValue;
-          break;
-        case Comparator.EQUAL:
-          isComplete = currentValue === targetValue;
-          break;
-        case Comparator.MORE_OR_EQUAL:
-          isComplete = currentValue >= targetValue;
-          break;
-        case Comparator.LESS_OR_EQUAL:
-          isComplete = currentValue <= targetValue;
-          break;
-      }
+    // Always check completion regardless of targetValue
+    switch (ach.comparator) {
+      case Comparator.MORE_THAN:
+        isComplete = currentValue > targetValue;
+        break;
+      case Comparator.LESS_THAN:
+        isComplete = currentValue < targetValue;
+        break;
+      case Comparator.EQUAL:
+        isComplete = currentValue === targetValue;
+        break;
+      case Comparator.MORE_OR_EQUAL:
+        isComplete = currentValue >= targetValue;
+        break;
+      case Comparator.LESS_OR_EQUAL:
+        isComplete = currentValue <= targetValue;
+        break;
     }
     
     const existing = await prisma.userAchievement.findUnique({
@@ -246,10 +233,13 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
     });
     
     if (existing) {
-      await prisma.userAchievement.update({
-        where: { id: existing.id },
-        data: { progress: progress }
-      });
+      // Only update if progress changed
+      if (existing.progress !== progress) {
+        await prisma.userAchievement.update({
+          where: { id: existing.id },
+          data: { progress: progress }
+        });
+      }
     } else {
       await prisma.userAchievement.create({
         data: {
@@ -260,20 +250,33 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
       });
     }
     
-    if (progress >= targetValue && existing && !existing.completed_at) {
-      await prisma.userAchievement.update({
-        where: { id: existing.id },
-        data: { completed_at: new Date(), progress: 100 }
+    // Check if completed (either just completed or was already completed)
+    const justCompleted = isComplete && (!existing || (existing && !existing.completed_at));
+    
+    if (justCompleted) {
+      const record = existing || await prisma.userAchievement.findUnique({
+        where: {
+          user_id_achievement_id: {
+            user_id: userId,
+            achievement_id: ach.id
+          }
+        }
       });
-      await grantReward(userId, ach.reward_type, ach.reward_value);
       
-      // pop up you got an achievement
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { clerkId: true }
-      });
-      if (user) {
-        sendAchievementNotification(user.clerkId, ach.name, `${ach.reward_type}: ${ach.reward_value}`);
+      if (record && !record.completed_at) {
+        await prisma.userAchievement.update({
+          where: { id: record.id },
+          data: { completed_at: new Date(), progress: 100 }
+        });
+        await grantReward(userId, ach.reward_type, ach.reward_value);
+        
+        const userData = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { clerkId: true }
+        });
+        if (userData) {
+          sendAchievementNotification(userData.clerkId, ach.name, `${ach.reward_type}: ${ach.reward_value}`);
+        }
       }
     }
   }
