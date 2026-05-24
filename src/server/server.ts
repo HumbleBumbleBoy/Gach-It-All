@@ -721,58 +721,70 @@ app.post('/api/cards/sell', async (req, res) => {
   
   const { cardId } = req.body;
   
-  const user = await prisma.user.findUnique({
-    where: { clerkId: auth.userId },
-    select: { id: true, currency: true }
-  });
-  
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  
-  const card = await prisma.userCards.findFirst({
-    where: { id: cardId, user_id: user.id },
-    include: { cardTemplate: true }
-  });
-  
-  if (!card) return res.status(404).json({ error: 'Card not found' });
-
-  const qualityMultipliers = { TARNISHED: 0.3, POOR: 0.66, REGULAR: 1, GOOD: 1.25, CRISP: 1.5 };
-  const enhancementMultipliers = { BASIC: 1, FOILED: 1.25, SHINY: 1.5, SIGNED: 2 };
-  
-  const qualityMult = qualityMultipliers[card.quality] || 1;
-  const enhancementMult = enhancementMultipliers[card.enhancement] || 1;
-  const cardValue = card.cardTemplate.base_price * qualityMult * enhancementMult;
-  const sellPrice = roundCurrency(cardValue * 0.9); // sell at 90% value
-  
-  await updateCurrency(user.id, sellPrice, 'gain');
-  
-  // Update sold cards count
-  await prisma.userStats.update({
-    where: { user_id: user.id },
-    data: { total_cards_sold: { increment: 1 } }
-  });
-  
-  await prisma.userCards.delete({ where: { id: cardId } });
-  
-  const uniqueCardTemplates = await prisma.userCards.findMany({
-    where: { user_id: user.id },
-    select: { card_template_id: true },
-    distinct: ['card_template_id']
-  });
-  
-  await prisma.userStats.update({
-    where: { user_id: user.id },
-    data: { unique_cards: uniqueCardTemplates.length }
-  });
-  
-  await checkAndUpdateAchievements(user.id, Condition.CARDS_SOLD);
-  await checkAndUpdateAchievements(user.id, Condition.CARDS_COLLECTED);
-  
-  const updatedUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { currency: true }
-  });
-  
-  res.json({ success: true, sellPrice, newCurrency: updatedUser?.currency });
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Get card with user in one query
+      const card = await tx.userCards.findFirst({
+        where: { 
+          id: cardId, 
+          user: { clerkId: auth.userId }
+        },
+        include: { cardTemplate: true, user: { select: { id: true, currency: true } } }
+      });
+      
+      if (!card) throw new Error('Card not found');
+      
+      const qualityMultipliers = { TARNISHED: 0.3, POOR: 0.66, REGULAR: 1, GOOD: 1.25, CRISP: 1.5 };
+      const enhancementMultipliers = { BASIC: 1, FOILED: 1.25, SHINY: 1.5, SIGNED: 2 };
+      
+      const sellPrice = roundCurrency(card.cardTemplate.base_price * 
+        (qualityMultipliers[card.quality] || 1) * 
+        (enhancementMultipliers[card.enhancement] || 1) * 0.9);
+      
+      // Update everything in parallel
+      await Promise.all([
+        tx.user.update({
+          where: { id: card.user.id },
+          data: { currency: { increment: sellPrice } }
+        }),
+        tx.userStats.update({
+          where: { user_id: card.user.id },
+          data: { 
+            total_currency_gained: { increment: sellPrice },
+            total_cards_sold: { increment: 1 }
+          }
+        }),
+        tx.userCards.delete({ where: { id: cardId } })
+      ]);
+      
+      // Get updated unique count - FIXED
+      const uniqueTemplates = await tx.userCards.findMany({
+        where: { user_id: card.user.id },
+        select: { card_template_id: true },
+        distinct: ['card_template_id']
+      });
+      
+      await tx.userStats.update({
+        where: { user_id: card.user.id },
+        data: { unique_cards: uniqueTemplates.length }
+      });
+      
+      return { sellPrice, newCurrency: card.user.currency + sellPrice, userId: card.user.id };
+    });
+    
+    // Async achievements (don't await to speed up response)
+    Promise.all([
+      checkAndUpdateAchievements(result.userId, Condition.CARDS_SOLD),
+      checkAndUpdateAchievements(result.userId, Condition.CARDS_COLLECTED)
+    ]).catch(console.error);
+    
+    res.json({ success: true, sellPrice: result.sellPrice, newCurrency: result.newCurrency });
+    
+  } catch (error) {
+    console.error('Failed to sell card:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to sell card';
+    res.status(500).json({ error: errorMessage });
+  }
 });
 
 app.get('/api/packs', async (_req, res) => {

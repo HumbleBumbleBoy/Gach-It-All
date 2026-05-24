@@ -310,8 +310,6 @@ export default function Collection() {
           })}
         </div>
         
-        {rootCards.length === 0 && <div className="text-gray-400">Nothing here yet...</div>}
-        
         <h2 className="text-2xl font-bold mb-4">Your card collection ({userCards.length} total cards)</h2>
         {rootCards.length > 0 && (
           <div className="flex flex-wrap gap-3 mt-10 justify-center mb-100">
