@@ -1,6 +1,6 @@
 import { Show, SignInButton, SignUpButton, UserAvatar, useClerk, useUser } from '@clerk/react';
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import { Bars3Icon, TrophyIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, TrophyIcon, XMarkIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
 import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../lib/api';
@@ -27,6 +27,21 @@ export default function Navbar() {
   const [achievements, setAchievements] = useState<any[]>([]);
   const [userAchievements, setUserAchievements] = useState<any[]>([]);
   const [toast, setToast] = useState<{ show: boolean; achievement: string; reward: string; image?: string } | null>(null);
+  const [isMuted, setIsMuted] = useState<boolean>(() => {
+    // Load mute preference from localStorage
+    return localStorage.getItem('soundMuted') === 'true';
+  });
+
+  // Save mute preference to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('soundMuted', String(isMuted));
+    // Dispatch a custom event so other components can react to mute changes
+    window.dispatchEvent(new CustomEvent('soundMuteChanged', { detail: { isMuted } }));
+  }, [isMuted]);
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
 
   useEffect(() => {
     if (isSignedIn && user) {
@@ -42,7 +57,6 @@ export default function Navbar() {
         .then(data => setUserAchievements(data.userAchievements || []))
         .catch(err => console.error('Failed to fetch user achievements:', err));
 
-      // Refresh achievements every 15 seconds
       const interval = setInterval(() => {
         apiClient.getUserAchievements()
           .then(data => setUserAchievements(data.userAchievements || []))
@@ -83,7 +97,6 @@ export default function Navbar() {
       eventSource.onerror = (err) => {
         console.error('SSE error:', err);
         eventSource?.close();
-        // Try to reconnect after 5 seconds
         setTimeout(connect, 5000);
       };
     };
@@ -245,6 +258,18 @@ export default function Navbar() {
                     </MenuItem>
                   </MenuItems>
                 </Menu>
+
+                <button
+                  onClick={toggleMute}
+                  className="relative ml-2 rounded-full p-1 text-gray-400 hover:text-white focus:outline-2 focus:outline-offset-2 focus:outline-indigo-500"
+                  title={isMuted ? "Unmute sounds" : "Mute sounds"}
+                >
+                  {isMuted ? (
+                    <SpeakerXMarkIcon className="size-6" />
+                  ) : (
+                    <SpeakerWaveIcon className="size-6" />
+                  )}
+                </button>
                 
                 <Menu as="div" className="relative ml-3">
                   <MenuButton className="relative flex rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
@@ -327,7 +352,7 @@ export default function Navbar() {
             {toast.image ? (
               <img src={toast.image} alt={toast.achievement} className="w-full h-full object-cover" />
             ) : (
-              <TrophyIcon className="w-8 h-8 text-yellow-400" />  // fallback if achievement doesnt have a picture
+              <TrophyIcon className="w-8 h-8 text-yellow-400" />
             )}
           </div>
           <div className="flex-1">
