@@ -96,9 +96,50 @@ export default function Collection() {
     }
   }, [isSignedIn, user]);
 
+  const RARITY_CATEGORIES = ['COMMON', 'UNCOMMON', 'SPARSE', 'RARE', 'UBER_RARE', 'MYTHICAL', 'LEGENDARY', 'SPECIAL'];
+  const [rarityCounts, setRarityCounts] = useState<Record<string, number>>({});
+  const [totalCardsPerRarity, setTotalCardsPerRarity] = useState<Record<string, number>>({});
+
+  const calculateRarityProgress = (cards: any[]) => {
+    const counts: Record<string, number> = {};
+    const totals: Record<string, number> = {};
+    
+    RARITY_CATEGORIES.forEach(rarity => {
+      counts[rarity] = 0;
+      totals[rarity] = 0;
+    });
+
+    const uniqueTemplates = new Set();
+    cards.forEach((card: any) => {
+      const templateId = card.card_template_id;
+      if (!uniqueTemplates.has(templateId)) {
+        uniqueTemplates.add(templateId);
+        const rarity = card.cardTemplate?.rarity;
+        if (rarity && counts[rarity] !== undefined) {
+          counts[rarity]++;
+        }
+      }
+    });
+
+    const fetchTotalCards = async () => {
+      const data = await apiClient.getCards();
+      data.items.forEach((template: any) => {
+        const rarity = template.rarity;
+        if (rarity && totals[rarity] !== undefined) {
+          totals[rarity]++;
+        }
+      });
+      setTotalCardsPerRarity(totals);
+    };
+    
+    fetchTotalCards();
+    setRarityCounts(counts);
+  };
+
   const refreshCollection = async () => {
     const data = await apiClient.getCollection();
     setUserCards(data.items);
+    calculateRarityProgress(data.items);
     groupByRootCard(data.items);
   };
 
@@ -114,12 +155,14 @@ export default function Collection() {
           name: card.cardTemplate?.name,
           image_url: card.cardTemplate?.image_url,
           rarity: card.cardTemplate?.rarity,
-          description: card.cardTemplate?.description, 
+          description: card.cardTemplate?.description,
+          series: card.cardTemplate?.series,
+          type: card.cardTemplate?.type,
           totalQuantity: 0,
           variants: []
         });
       }
-      
+        
       const root = rootMap.get(templateId);
       root.totalQuantity++;
       
@@ -232,6 +275,30 @@ export default function Collection() {
     <>
       <Navbar />
       <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
+          {RARITY_CATEGORIES.map((rarity) => {
+            const style = getRarityStyle(rarity);
+            const owned = rarityCounts[rarity] || 0;
+            const total = totalCardsPerRarity[rarity] || 0;
+            const percentage = total > 0 ? (owned / total) * 100 : 0;
+            
+            return (
+              <div 
+                key={rarity}
+                className={`bg-gray-900 rounded-lg p-3 border-2 ${style.borderColor} ${style.aura || ''}`}
+              >
+                <div className={`text-xs font-semibold ${style.textColor}`}>{rarity}</div>
+                <div className="text-2xl font-bold text-white mt-1">{owned}/{total}</div>
+                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
+                  <div 
+                    className={`h-1.5 rounded-full ${percentage === 100 ? 'bg-green-500' : style.textColor.replace('text-', 'bg-')}`}
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
         <h1 className="text-2xl font-bold mb-4">Your card collection ({userCards.length} total cards)</h1>
         
         {rootCards.length === 0 && <div className="text-gray-400">Nothing here yet...</div>}
@@ -271,7 +338,7 @@ export default function Collection() {
                     <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5">
                       <p className={`font-semibold mb-1 ${style.textColor}`}>{rootCard.name}</p>
                       <p className="text-gray-300 text-[10px]">{rootCard.description || 'No description'}</p>
-                      <p className={`text-[10px] mt-1 ${style.textColor} opacity-75`}>Rarity: {rootCard.rarity}</p>
+                      <p className={`text-[10px] mt-1 pt-1 ${style.textColor} opacity-75`}>{rootCard.series || 'Missing Series'} | {rootCard.type || 'Missing Type'}</p>
                     </div>
                   )}
                 </div>
@@ -311,22 +378,22 @@ export default function Collection() {
                   </div>
                   
                   <div className="text-sm text-gray-300 mb-2">
-                    <div>Base Stats: HP: {variant.original_hp} | ATK: {variant.original_atk} | DEF: {variant.original_def}</div>
-                    {variant.enhancement !== 'BASIC' && (
-                      <div className="text-green-400 text-xs mt-1">
+                    <div className="mt-1">HP: {variant.base_hp} | ATK: {variant.base_atk} | DEF: {variant.base_def} 
+                      {variant.enhancement !== 'BASIC' && (
+                      <span className="text-green-500 text-xs ml-3">
                         {variant.enhancement === 'FOILED' && '+50% DEF'}
                         {variant.enhancement === 'SHINY' && '+50% HP'}
                         {variant.enhancement === 'SIGNED' && '+50% ATK'}
-                      </div>
-                    )}
-                    <div className="mt-1">Final Stats: HP: {variant.base_hp} | ATK: {variant.base_atk} | DEF: {variant.base_def}</div>
+                      </span>
+                      )}
+                    </div> 
                   </div>
                   
-                  <div className="text-sm mb-3">
-                    Value: ${variant.cardPrice.toFixed(2)} | Sell: ${variant.sellPrice.toFixed(2)} each
+                  <div className="text-sm mb-3 flex justify-between items-baseline">
+                    <span>Value: ${variant.cardPrice.toFixed(2)} | Sell: ${variant.sellPrice.toFixed(2)} each</span>
                     {variant.quantity > 1 && (
-                      <span className="block text-xs text-gray-400 mt-1">
-                        Total sell value: ${(variant.sellPrice * variant.quantity).toFixed(2)}
+                      <span className="text-xs text-gray-400">
+                        Total: ${(variant.sellPrice * variant.quantity).toFixed(2)}
                       </span>
                     )}
                   </div>

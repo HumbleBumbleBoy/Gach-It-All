@@ -19,6 +19,8 @@ interface Card {
     base_hp?: number;
     base_atk?: number;
     base_def?: number;
+    series?: string;
+    type?: string;
   };
 }
 
@@ -184,7 +186,9 @@ export default function Gacha() {
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5">
                             <p className={`font-semibold mb-1 ${style.textColor}`}>{cardName}</p>
                             <p className="text-gray-300 text-[10px]">{card.cardTemplate?.description || 'No description'}</p>
-                            <p className={`text-[10px] mt-1 ${style.textColor} opacity-75`}>Rarity: {rarity}</p>
+                            <p className={`text-[10px] mt-1 pt-1 ${style.textColor} opacity-75`}>
+                              {card.cardTemplate?.series || 'Unknown'} | {card.cardTemplate?.type || 'Unknown'}
+                            </p>
                           </div>
                         )}
                       </div>
