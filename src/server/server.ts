@@ -286,6 +286,116 @@ function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+interface StatRange {
+  min: number;
+  max: number;
+}
+
+interface RarityStats {
+  hp: StatRange;
+  def: StatRange;
+  atk: StatRange;
+  price: StatRange;
+}
+
+const FALLBACK_STATS: Record<string, RarityStats> = {
+  COMMON: {
+    hp: { min: 30, max: 100 },
+    def: { min: 0, max: 20 },
+    atk: { min: 1, max: 25 },
+    price: { min: 0.01, max: 0.30 }
+  },
+  UNCOMMON: {
+    hp: { min: 110, max: 180 },
+    def: { min: 15, max: 35 },
+    atk: { min: 20, max: 40 },
+    price: { min: 0.70, max: 1.10 }
+  },
+  SPARSE: {
+    hp: { min: 150, max: 250 },
+    def: { min: 20, max: 45 },
+    atk: { min: 35, max: 60 },
+    price: { min: 2.00, max: 3.00 }
+  },
+  RARE: {
+    hp: { min: 300, max: 400 },
+    def: { min: 30, max: 60 },
+    atk: { min: 40, max: 90 },
+    price: { min: 6.00, max: 9.00 }
+  },
+  UBER_RARE: {
+    hp: { min: 300, max: 650 },
+    def: { min: 20, max: 100 },
+    atk: { min: 30, max: 125 },
+    price: { min: 7.00, max: 14.00 }
+  },
+  MYTHICAL: {
+    hp: { min: 550, max: 950 },
+    def: { min: 40, max: 120 },
+    atk: { min: 60, max: 150 },
+    price: { min: 20.00, max: 35.00 }
+  },
+  LEGENDARY: {
+    hp: { min: 750, max: 1250 },
+    def: { min: 50, max: 150 },
+    atk: { min: 100, max: 200 },
+    price: { min: 50.00, max: 100.00 }
+  },
+  SPECIAL: {
+    hp: { min: 1000, max: 2000 },
+    def: { min: 200, max: 300 },
+    atk: { min: 250, max: 350 },
+    price: { min: 250.00, max: 1000.00 }
+  }
+};
+
+function weightedRandom(min: number, max: number, skew: number = 1): number {
+  // normal distribution
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  let num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  // Normalize to ~[-1, 1] range
+  num = num / 4.0;
+  // Apply skew (positive skew pushes values higher)
+  if (skew !== 1) {
+    num = Math.pow((num + 1) / 2, skew) * 2 - 1;
+  }
+
+  return min + (num + 1) / 2 * (max - min);
+}
+
+function calculateSkew(price: number, priceRange: StatRange): number {
+  const percent = (price - priceRange.min) / (priceRange.max - priceRange.min);
+  // Higher price = higher skew (pushes stats toward max)
+  // Skew ranges from 0.5 (low price) to 2.0 (high price)
+  return 0.5 + (percent * 1.5);
+}
+
+function generateFallbackStats(rarity: string, existingStats?: {
+  hp?: number;
+  atk?: number;
+  def?: number;
+  price?: number;
+}): { hp: number; atk: number; def: number; price: number } {
+  const ranges = FALLBACK_STATS[rarity] || FALLBACK_STATS.COMMON;
+  
+  // Generate price first (it determines skew for other stats)
+  let price = existingStats?.price;
+  if (!price) {
+    price = roundCurrency(weightedRandom(ranges.price.min, ranges.price.max, 1));
+  }
+
+  const skew = calculateSkew(price, ranges.price);
+  
+  // Generate stats with price-based skew
+  const hp = existingStats?.hp ?? Math.round(weightedRandom(ranges.hp.min, ranges.hp.max, skew));
+  const atk = existingStats?.atk ?? Math.round(weightedRandom(ranges.atk.min, ranges.atk.max, skew));
+  const def = existingStats?.def ?? Math.round(weightedRandom(ranges.def.min, ranges.def.max, skew));
+  
+  return { hp, atk, def, price: roundCurrency(price) };
+}
+
 // -------------- API Routes 
 
 app.get('/api/protected', (req, res) => {
@@ -631,7 +741,7 @@ app.post('/api/cards/sell', async (req, res) => {
   const qualityMult = qualityMultipliers[card.quality] || 1;
   const enhancementMult = enhancementMultipliers[card.enhancement] || 1;
   const cardValue = card.cardTemplate.base_price * qualityMult * enhancementMult;
-  const sellPrice = roundCurrency(cardValue * 0.8);
+  const sellPrice = roundCurrency(cardValue * 0.9); // sell at 90% value
   
   await updateCurrency(user.id, sellPrice, 'gain');
   
@@ -859,6 +969,37 @@ function determineRarity(pack: Pack): string {
 }
 
 async function applyQualityAndEnhancement(card: CardTemplates, pack: Pack, userId: number) {
+  // Generate fallback stats if card template stats are missing
+  const needsFallback = !card.base_hp || !card.base_atk || !card.base_def || !card.base_price;
+  let finalStats = {
+    hp: card.base_hp,
+    atk: card.base_atk,
+    def: card.base_def,
+    price: card.base_price
+  };
+  
+  if (needsFallback) {
+    const fallbackStats = generateFallbackStats(card.rarity, {
+      hp: card.base_hp || undefined,
+      atk: card.base_atk || undefined,
+      def: card.base_def || undefined,
+      price: card.base_price || undefined
+    });
+    
+    finalStats = fallbackStats;
+    
+    // Update the card template in DB for future use
+    await prisma.cardTemplates.update({
+      where: { id: card.id },
+      data: {
+        base_hp: finalStats.hp,
+        base_atk: finalStats.atk,
+        base_def: finalStats.def,
+        base_price: finalStats.price
+      }
+    });
+  }
+  
   // Determine quality
   const qualityRandom = Math.random() * 100;
   let quality: Quality = Quality.REGULAR;
