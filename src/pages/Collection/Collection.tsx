@@ -288,10 +288,20 @@ export default function Collection() {
                 className={`bg-gray-900 rounded-lg p-3 border-2 ${style.borderColor} ${style.aura || ''}`}
               >
                 <div className={`text-xs font-semibold ${style.textColor}`}>{rarity}</div>
-                <div className="text-2xl font-bold text-white mt-1">{owned}/{total}</div>
-                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
+                <div className="text-xl font-bold text-white mt-1">{owned}<span className="text-xs text-gray-500">/{total}</span></div>
+                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2 overflow-hidden">
                   <div 
-                    className={`h-1.5 rounded-full ${percentage === 100 ? 'bg-green-500' : style.textColor.replace('text-', 'bg-')}`}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      percentage === 100 ? 'bg-green-500' : 
+                      rarity === 'COMMON' ? 'bg-gray-500' :
+                      rarity === 'UNCOMMON' ? 'bg-green-500' :
+                      rarity === 'SPARSE' ? 'bg-blue-500' :
+                      rarity === 'RARE' ? 'bg-purple-500' :
+                      rarity === 'UBER_RARE' ? 'bg-pink-500' :
+                      rarity === 'MYTHICAL' ? 'bg-orange-500' :
+                      rarity === 'LEGENDARY' ? 'bg-yellow-500' :
+                      rarity === 'SPECIAL' ? 'bg-red-500' : 'bg-gray-500'
+                    }`}
                     style={{ width: `${percentage}%` }}
                   />
                 </div>
