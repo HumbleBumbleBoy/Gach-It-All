@@ -183,7 +183,7 @@ export default function Navbar() {
 
                   <MenuItems
                     transition
-                    className="absolute z-10 mt-10 left-1/2 -translate-x-1/2 max-sm:-translate-x-1/2 max-sm:left-[-20vw] w-screen mx-auto max-w-md sm:max-w-8/9 min-h-[75vh] max-h-[75vh] overflow-y-auto rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
+                    className="absolute z-11 mt-10 left-1/2 -translate-x-1/2 max-sm:-translate-x-1/2 max-sm:left-[-20vw] w-screen mx-auto max-w-md sm:max-w-8/9 min-h-[75vh] max-h-[75vh] overflow-y-auto rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
                   >
                     <MenuItem>
                       <div>
