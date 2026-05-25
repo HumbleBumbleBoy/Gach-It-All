@@ -153,7 +153,7 @@ export default function Navbar() {
             </div>
             
             <div className="flex flex-1 items-center justify-center sm:justify-start">
-              <div className="flex shrink-0 items-center">
+              <div className="shrink-0 items-center hidden sm:block">
                 <Link to="/">
                   <img
                     alt="Gatch It All!"
@@ -196,7 +196,7 @@ export default function Navbar() {
 
                   <MenuItems
                     transition
-                    className="absolute z-11 mt-10 left-1/2 -translate-x-1/2 max-sm:-translate-x-1/2 max-sm:left-[-20vw] w-screen mx-auto max-w-md sm:max-w-8/9 min-h-[75vh] max-h-[75vh] overflow-y-auto rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
+                    className="absolute z-11 mt-10 left-1/2 -translate-x-1/2 max-sm:-translate-x-1/2 max-sm:left-[2vw] w-screen mx-auto max-w-md sm:max-w-8/9 min-h-[75vh] max-h-[75vh] overflow-y-auto rounded-md bg-gray-800 py-1 outline -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
                   >
                     <MenuItem>
                       <div>
@@ -327,6 +327,19 @@ export default function Navbar() {
 
         <DisclosurePanel className="sm:hidden">
           <div className="space-y-1 px-2 pt-2 pb-3">
+            <DisclosureButton
+              key="home"
+              as={Link}
+              to="/"
+              className={classNames(
+                location.pathname === "/"
+                  ? 'bg-gray-950/50 text-white'
+                  : 'text-gray-300 hover:bg-white/5 hover:text-white',
+                'block rounded-md px-3 py-2 text-base font-medium',
+              )}
+            >
+              Home
+            </DisclosureButton>
             {navigation.map((item) => (
               <DisclosureButton
                 key={item.name}

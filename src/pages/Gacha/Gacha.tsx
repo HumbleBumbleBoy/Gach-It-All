@@ -265,62 +265,69 @@ export default function Gacha() {
                           animationDelay: `${index * 50}ms`
                         }}
                       >
-                        <div className="relative w-40 h-50">
+                        <div className="relative w-28 sm:w-40 h-40 sm:h-56">
                           <div 
                             className={`relative w-full h-full transition-all duration-500 preserve-3d ${
                               isFlipped ? 'rotate-y-180' : ''
                             }`}
                             style={{ transformStyle: 'preserve-3d' }}
                           >
-                          {/* Card Back (face down) */}
-                          <div 
-                            className={`absolute inset-0 backface-hidden bg-gray-800 rounded-lg p-3 border-2 border-gray-600 h-54.5 self-center ${
-                              !isFlipped ? 'block' : 'hidden'
-                            }`}
-                          >
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="text-gray-500 text-8xl font-bold transform rotate-30">?</div>
+                            {/* Card Back */}
+                            <div 
+                              className={`absolute inset-0 backface-hidden bg-gray-800 rounded-lg p-2 sm:p-3 border-2 border-gray-600 w-full h-full ${
+                                !isFlipped ? 'block' : 'hidden'
+                              }`}
+                            >
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-gray-500 text-6xl sm:text-8xl font-bold transform rotate-30">?</div>
+                              </div>
+                            </div>
+                            
+                            {/* Card Front */}
+                            <div 
+                              className={`backface-hidden bg-gray-800 rounded-lg p-2 sm:p-3 w-full h-full border-2 ${style.borderColor} ${style.aura || ''} overflow-hidden ${
+                                isFlipped ? 'block' : 'hidden'
+                              }`}
+                              style={{ transform: 'rotateY(180deg)' }}
+                            >
+                              {card.image_url || card.cardTemplate?.image_url ? (
+                                <img 
+                                  src={card.image_url || card.cardTemplate?.image_url} 
+                                  alt={cardName}
+                                  className="w-full h-24 sm:h-32 object-contain rounded-lg mb-1 sm:mb-2"
+                                />
+                              ) : (
+                                <div className="w-full h-24 sm:h-32 bg-gray-700 rounded-lg mb-1 sm:mb-2 flex items-center justify-center">
+                                  <span className="text-3xl sm:text-4xl">🎴</span>
+                                </div>
+                              )}
+                              <p className={`text-xs sm:text-sm font-semibold truncate text-center ${style.textColor}`}>
+                                {cardName}
+                              </p>
+                              <p className={`text-[10px] sm:text-xs text-center mt-1 ${style.textColor}`}>
+                                {rarity}
+                              </p>
+                              {card.quality && (
+                                <p className="text-[8px] sm:text-xs text-gray-500 text-center mt-1 truncate">
+                                  {card.quality} • {card.enhancement}
+                                </p>
+                              )}
                             </div>
                           </div>
-                          
-                          {/* Card Front (face up) */}
-                          <div 
-                            className={`backface-hidden bg-gray-800 rounded-lg p-3 w-40 border-2 ${style.borderColor} ${style.aura || ''} ${
-                              isFlipped ? 'block' : 'hidden'
-                            }`}
-                            style={{ transform: 'rotateY(180deg)' }}
-                          >
-                            {card.image_url || card.cardTemplate?.image_url ? (
-                              <img 
-                                src={card.image_url || card.cardTemplate?.image_url} 
-                                alt={cardName}
-                                className="w-full h-32 object-contain rounded-lg mb-2"
-                              />
-                            ) : (
-                              <div className="w-full h-32 bg-gray-700 rounded-lg mb-2 flex items-center justify-center">
-                                <span className="text-4xl">🎴</span>
-                              </div>
-                            )}
-                            <p className={`text-sm font-semibold truncate text-center ${style.textColor}`}>
-                              {cardName}
-                            </p>
-                            <p className={`text-xs text-center mt-1 ${style.textColor}`}>
-                              {rarity}
-                            </p>
-                            {card.quality && (
-                              <p className="text-xs text-gray-500 text-center mt-1">
-                                {card.quality} • {card.enhancement}
-                              </p>
-                            )}
-                          </div>
                         </div>
-                      </div>
                         
                       {hoveredCard === index && isFlipped && (
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5">
-                          <p className={`font-semibold mb-1 ${style.textColor}`}>{cardName}</p>
-                          <p className="text-gray-300 text-[10px]">{card.cardTemplate?.description || 'No description'}</p>
-                          <p className={`text-[10px] mt-1 pt-1 ${style.textColor}`}>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs px-2 py-1 sm:px-3 sm:py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5 sm:min-w-37.5 max-w-50 sm:max-w-70">
+                          <p className={`font-semibold mb-1 text-xs sm:text-sm truncate ${style.textColor}`}>
+                            {cardName}
+                          </p>
+                          <p className="text-gray-300 text-[10px] leading-relaxed line-clamp-10">
+                            {card.cardTemplate?.description || 'No description'}
+                          </p>
+                          <p className={`text-[10px] mt-1 pt-1 truncate ${style.textColor}`}>
+                            {card.cardTemplate?.base_hp || 'NULL HP'}HP | {card.cardTemplate?.base_def || 'NULL DEF'}DEF | {card.cardTemplate?.base_atk || 'NULL ATK'}ATK
+                          </p>
+                          <p className={`text-[10px] mt-1 pt-1 truncate ${style.textColor}`}>
                             {card.cardTemplate?.series || 'Unknown'} | {card.cardTemplate?.type || 'Unknown'}
                           </p>
                         </div>
