@@ -113,24 +113,29 @@ export default function Collection() {
   }, [isSignedIn, user]);
 
   useEffect(() => {
-  if (userCards.length > 0) {
-    const sum = userCards.reduce((acc, card: any) => {
-      const cardPrice = calculateCardPrice(
-        card.cardTemplate?.base_price,
-        card.quality,
-        card.enhancement
-      );
-      return acc + cardPrice;
-    }, 0);
-    setTotalValue(sum);
-  } else {
-    setTotalValue(0);
-  }
-}, [userCards]);
+    if (userCards && userCards.length > 0) {
+      const sum = userCards.reduce((acc, card: any) => {
+        const cardPrice = calculateCardPrice(
+          card.cardTemplate?.base_price ?? 0,
+          card.quality ?? 'REGULAR',
+          card.enhancement ?? 'BASIC'
+        );
+        return acc + cardPrice;
+      }, 0);
+      setTotalValue(sum);
+    } else {
+      setTotalValue(0);
+    }
+  }, [userCards]);
 
   const loadFavorites = async () => {
-    const data = await apiClient.getFavorites();
-    setFavorites(new Set(data.favorites));
+    if (!isSignedIn) return;
+    try {
+      const data = await apiClient.getFavorites();
+      setFavorites(new Set(data.favorites || []));
+    } catch (error) {
+      console.error('Failed to load favorites:', error);
+    }
   };
 
   const fetchAllCards = async () => {
