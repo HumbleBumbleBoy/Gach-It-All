@@ -94,6 +94,9 @@ export default function Collection() {
   const [sortBy, setSortBy] = useState<'rarity' | 'name' | 'base_price' | 'quantity' | 'base_hp' | 'base_def' | 'base_atk'>('rarity');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [viewMode, setViewMode] = useState<'your' | 'entire'>('your');
+  const [selectedCardInfo, setSelectedCardInfo] = useState<any>(null);
+  const [favorites, setFavorites] = useState<Set<number>>(new Set());
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
 
   useEffect(() => {
     if (isSignedIn && user) {
@@ -333,56 +336,61 @@ export default function Collection() {
   const openRootCardDetails = (rootCard: any) => {
     setSelectedRootCard(rootCard);
     setSelectedVariants(rootCard.variants);
+    setSelectedCardInfo(rootCard);
   };
 
   const getSortedRootCards = (cards: any[]) => {
-    const sorted = [...cards];
+    let filtered = [...cards];
+
+    if (showOnlyFavorites) {
+      filtered = filtered.filter(card => favorites.has(card.templateId));
+    }
     
     switch (sortBy) {
       case 'rarity':
-        sorted.sort((a, b) => {
+        filtered.sort((a, b) => {
           const orderA = rarityOrder[a.rarity] ?? 999;
           const orderB = rarityOrder[b.rarity] ?? 999;
           return sortDirection === 'asc' ? orderA - orderB : orderB - orderA;
         });
         break;
       case 'name':
-        sorted.sort((a, b) => {
+        filtered.sort((a, b) => {
           return sortDirection === 'asc' 
             ? a.name.localeCompare(b.name)
             : b.name.localeCompare(a.name);
         });
         break;
       case 'base_price':
-        sorted.sort((a, b) => {
+        filtered.sort((a, b) => {
           return sortDirection === 'asc' 
             ? a.base_price - b.base_price
             : b.base_price - a.base_price;
         });
         break;
       case 'quantity':
-        sorted.sort((a, b) => {
+        filtered.sort((a, b) => {
           return sortDirection === 'asc' 
             ? a.totalQuantity - b.totalQuantity
             : b.totalQuantity - a.totalQuantity;
         });
         break;
       case 'base_hp':
-        sorted.sort((a, b) => {
+        filtered.sort((a, b) => {
           return sortDirection === 'asc' 
             ? a.base_hp - b.base_hp
             : b.base_hp - a.base_hp;
         });
         break;
       case 'base_def':
-        sorted.sort((a, b) => {
+        filtered.sort((a, b) => {
           return sortDirection === 'asc' 
             ? a.base_def - b.base_def
             : b.base_def - a.base_def;
         });
         break;
       case 'base_atk':
-        sorted.sort((a, b) => {
+        filtered.sort((a, b) => {
           return sortDirection === 'asc' 
             ? a.base_atk - b.base_atk
             : b.base_atk - a.base_atk;
@@ -390,11 +398,24 @@ export default function Collection() {
         break;
     }
     
-    return sorted;
+    return filtered;
   };
 
   const isCardOwned = (cardId: number) => {
     return userCards.some((c: any) => c.card_template_id === cardId);
+  };
+
+  const toggleFavorite = (cardId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFavorites(prev => {
+      const newFavorites = new Set(prev);
+      if (newFavorites.has(cardId)) {
+        newFavorites.delete(cardId);
+      } else {
+        newFavorites.add(cardId);
+      }
+      return newFavorites;
+    });
   };
 
   return (
@@ -435,8 +456,7 @@ export default function Collection() {
             );
           })}
         </div>
-        
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
             <h2 className="text-2xl font-bold">
               <button
                 onClick={() => {
@@ -457,65 +477,71 @@ export default function Collection() {
               >
                 Entire
               </button>
-              <span className="ml-2">card collection ({viewMode === 'your' ? userCards.length : allCards.length} total cards)</span>
+              <span className="lg:ml-2">card collection ({viewMode === 'your' ? userCards.length : allCards.length} total cards)</span>
             </h2>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1">
-              <button
-                onClick={() => setSortBy('rarity')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'rarity' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-              >
-                By Rarity
-              </button>
-              <button
-                onClick={() => setSortBy('base_price')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_price' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-              >
-                By Price
-              </button>
-              <button
-                onClick={() => setSortBy('name')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'name' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-              >
-                By Name
-              </button>
-              <button
-                onClick={() => setSortBy('quantity')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'quantity' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-              >
-                By Quantity
-              </button>
-              <button
-                onClick={() => setSortBy('base_hp')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_hp' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-              >
-                By HP
-              </button>
-              <button
-                onClick={() => setSortBy('base_def')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_def' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-              >
-                By DEF
-              </button>
-              <button
-                onClick={() => setSortBy('base_atk')}
-                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_atk' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-              >
-                By ATK
-              </button>
-            </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1">
             <button
-              onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
-              className="px-3 py-1 text-xs rounded transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
-              title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+              onClick={() => setSortBy('rarity')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'rarity' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
             >
-              {sortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
+              By Rarity
+            </button>
+            <button
+              onClick={() => setSortBy('base_price')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_price' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              By Price
+            </button>
+            <button
+              onClick={() => setSortBy('name')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'name' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              By Name
+            </button>
+            <button
+              onClick={() => setSortBy('quantity')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'quantity' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              By Quantity
+            </button>
+            <button
+              onClick={() => setSortBy('base_hp')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_hp' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              By HP
+            </button>
+            <button
+              onClick={() => setSortBy('base_def')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_def' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              By DEF
+            </button>
+            <button
+              onClick={() => setSortBy('base_atk')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_atk' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              By ATK
             </button>
           </div>
+          <button
+            onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+            className={`px-2 py-1.5 text-xs rounded transition-colors ${showOnlyFavorites ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+          >
+            ❤️
+          </button>
+          <button
+            onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+            className="px-3 py-1 text-xs rounded transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
+            title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+          >
+            {sortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
+          </button>
+        </div>
         
         {getCurrentCards().length > 0 && (
-        <div className="flex flex-wrap gap-3 mt-10 justify-start mb-100">
+        <div className="flex flex-wrap gap-3 mt-10 justify-around sm:justify-start mb-100">
           {getSortedRootCards(getCurrentCards()).map((rootCard: any) => {
             const style = getRarityStyle(rootCard.rarity);
             const owned = viewMode === 'your' ? true : isCardOwned(rootCard.templateId);
@@ -541,6 +567,14 @@ export default function Collection() {
                     alt={rootCard.name}
                     className="w-full h-25 object-contain mb-2"
                   />
+                )}
+                {viewMode === 'your' && (
+                  <button
+                    onClick={(e) => toggleFavorite(rootCard.templateId, e)}
+                    className="absolute top-2 left-2 z-20 text-lg"
+                  >
+                    {favorites.has(rootCard.templateId) ? '❤️' : '🩶'}
+                  </button>
                 )}
                 <div className={`font-semibold text-sm truncate text-center ${style.textColor}`}>
                   {rootCard.name}
@@ -584,6 +618,28 @@ export default function Collection() {
               <h2 className={`text-2xl font-bold mb-4 ${getRarityStyle(selectedRootCard.rarity).textColor}`}>
                 {selectedRootCard.name}
               </h2>
+
+              {viewMode === 'your' && selectedCardInfo && (
+                <div className="fixed right-0 w-80 bg-gray-800 rounded-l-lg shadow-xl z-40 p-4 border-l border-t border-b border-gray-700 max-sm:hidden">
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className={`font-bold text-lg ${getRarityStyle(selectedCardInfo.rarity).textColor}`}>
+                      {selectedCardInfo.name}
+                    </h3>
+                    <button
+                      onClick={() => setSelectedCardInfo(null)}
+                      className="text-gray-400 hover:text-white text-xl leading-none"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="text-gray-300 text-sm leading-relaxed max-h-96 overflow-y-auto">
+                    {selectedCardInfo.description || 'No description available.'}
+                  </div>
+                  <div className="mt-3 text-xs text-gray-500">
+                    {selectedCardInfo.series || 'Unknown'} | {selectedCardInfo.type || 'Unknown'}
+                  </div>
+                </div>
+              )}
               
               {selectedVariants.map((variant: any) => (
                 <div 
