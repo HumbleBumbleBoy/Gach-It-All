@@ -89,6 +89,12 @@ export default function Gacha() {
   }, []);
 
   useEffect(() => {
+    if (isSignedIn) {
+      loadExistingCards();
+    }
+  }, [isSignedIn]);
+
+  useEffect(() => {
     if (flippedCards.length > 0 && flippedCards.every(flipped => flipped === true)) {
       setAllFlipped(true);
     }
@@ -123,6 +129,16 @@ export default function Gacha() {
       }
     };
   }, []);
+
+  const loadExistingCards = async () => {
+    try {
+      const collection = await apiClient.getCollection();
+      const existingIds = new Set<number>(collection.items.map((c: any) => c.card_template_id));
+      setExistingCardIds(existingIds);
+    } catch (error) {
+      console.error('Failed to load existing cards:', error);
+    }
+  };
 
   const stopDrumRoll = () => {
     if (DrumRoll.current) {
@@ -162,10 +178,6 @@ export default function Gacha() {
       alert('Please sign in first!');
       return;
     }
-
-    const collection = await apiClient.getCollection();
-    const existingIds = new Set<number>(collection.items.map((c: any) => c.card_template_id));
-    setExistingCardIds(existingIds);
     
     isOpeningRef.current = true;
     setIsOpening(true);
@@ -187,6 +199,9 @@ export default function Gacha() {
       try {
         const result = await openPromise;
         if (result.success && result.cards && result.cards.length > 0) {
+          const newCardIds = result.cards.map((card: any) => card.card_template_id);
+          setExistingCardIds(prev => new Set([...prev, ...newCardIds]));
+          
           stopDrumRoll();
           playSound(PackOpened);
           
