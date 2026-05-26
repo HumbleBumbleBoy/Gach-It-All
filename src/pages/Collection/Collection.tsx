@@ -2,6 +2,7 @@ import Navbar from '../../components/Navbar';
 import { useUser } from '@clerk/react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../../lib/api';
+import { ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 
 // Pricing multipliers
 const QUALITY_MULTIPLIERS = {
@@ -85,16 +86,26 @@ function calculateCardStats(baseHp: number, baseAtk: number, baseDef: number, en
 export default function Collection() {
   const { isSignedIn, user } = useUser();
   const [userCards, setUserCards] = useState([]);
+  const [allCards, setAllCards] = useState([]);
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const [rootCards, setRootCards] = useState<any[]>([]);
   const [selectedRootCard, setSelectedRootCard] = useState<any>(null);
   const [selectedVariants, setSelectedVariants] = useState<any[]>([]);
+  const [sortBy, setSortBy] = useState<'rarity' | 'name' | 'base_price' | 'quantity' | 'base_hp' | 'base_def' | 'base_atk'>('rarity');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [viewMode, setViewMode] = useState<'your' | 'entire'>('your');
 
   useEffect(() => {
     if (isSignedIn && user) {
       refreshCollection();
+      fetchAllCards();
     }
   }, [isSignedIn, user]);
+
+  const fetchAllCards = async () => {
+    const data = await apiClient.getCards();
+    setAllCards(data.items);
+  };
 
   const RARITY_CATEGORIES = ['COMMON', 'UNCOMMON', 'SPARSE', 'RARE', 'UBER_RARE', 'MYTHICAL', 'LEGENDARY', 'SPECIAL'];
   const [rarityCounts, setRarityCounts] = useState<Record<string, number>>({});
@@ -158,6 +169,10 @@ export default function Collection() {
           description: card.cardTemplate?.description,
           series: card.cardTemplate?.series,
           type: card.cardTemplate?.type,
+          base_hp: card.cardTemplate?.base_hp,
+          base_atk: card.cardTemplate?.base_atk,
+          base_def: card.cardTemplate?.base_def,
+          base_price: card.cardTemplate?.base_price,
           totalQuantity: 0,
           variants: []
         });
@@ -201,13 +216,62 @@ export default function Collection() {
       variant.cards.push(card);
     });
     
-    const sortedRootCards = Array.from(rootMap.values()).sort((a, b) => {
-      const orderA = rarityOrder[a.rarity] ?? 999;
-      const orderB = rarityOrder[b.rarity] ?? 999;
-      return orderA - orderB;
+    setRootCards(Array.from(rootMap.values()));
+  };
+
+  const groupAllCards = () => {
+    const rootMap = new Map();
+    
+    allCards.forEach((card: any) => {
+      if (!rootMap.has(card.id)) {
+        rootMap.set(card.id, {
+          templateId: card.id,
+          name: card.name,
+          image_url: card.image_url,
+          rarity: card.rarity,
+          description: card.description,
+          series: card.series,
+          type: card.type,
+          base_hp: card.base_hp,
+          base_atk: card.base_atk,
+          base_def: card.base_def,
+          base_price: card.base_price,
+          totalQuantity: 0,
+          variants: []
+        });
+      }
     });
     
-    setRootCards(sortedRootCards);
+    setRootCards(Array.from(rootMap.values()));
+  };
+
+  const getCurrentCards = () => {
+    if (viewMode === 'your') {
+      return rootCards;
+    } else {
+      // Group all cards for entire collection view
+      const rootMap = new Map();
+      allCards.forEach((card: any) => {
+        if (!rootMap.has(card.id)) {
+          rootMap.set(card.id, {
+            templateId: card.id,
+            name: card.name,
+            image_url: card.image_url,
+            rarity: card.rarity,
+            description: card.description,
+            series: card.series,
+            type: card.type,
+            base_hp: card.base_hp,
+            base_atk: card.base_atk,
+            base_def: card.base_def,
+            base_price: card.base_price,
+            totalQuantity: 0,
+            variants: []
+          });
+        }
+      });
+      return Array.from(rootMap.values());
+    }
   };
 
   const sellOneCard = async (card: any, variant: any, rootCard: any) => {
@@ -271,6 +335,68 @@ export default function Collection() {
     setSelectedVariants(rootCard.variants);
   };
 
+  const getSortedRootCards = (cards: any[]) => {
+    const sorted = [...cards];
+    
+    switch (sortBy) {
+      case 'rarity':
+        sorted.sort((a, b) => {
+          const orderA = rarityOrder[a.rarity] ?? 999;
+          const orderB = rarityOrder[b.rarity] ?? 999;
+          return sortDirection === 'asc' ? orderA - orderB : orderB - orderA;
+        });
+        break;
+      case 'name':
+        sorted.sort((a, b) => {
+          return sortDirection === 'asc' 
+            ? a.name.localeCompare(b.name)
+            : b.name.localeCompare(a.name);
+        });
+        break;
+      case 'base_price':
+        sorted.sort((a, b) => {
+          return sortDirection === 'asc' 
+            ? a.base_price - b.base_price
+            : b.base_price - a.base_price;
+        });
+        break;
+      case 'quantity':
+        sorted.sort((a, b) => {
+          return sortDirection === 'asc' 
+            ? a.totalQuantity - b.totalQuantity
+            : b.totalQuantity - a.totalQuantity;
+        });
+        break;
+      case 'base_hp':
+        sorted.sort((a, b) => {
+          return sortDirection === 'asc' 
+            ? a.base_hp - b.base_hp
+            : b.base_hp - a.base_hp;
+        });
+        break;
+      case 'base_def':
+        sorted.sort((a, b) => {
+          return sortDirection === 'asc' 
+            ? a.base_def - b.base_def
+            : b.base_def - a.base_def;
+        });
+        break;
+      case 'base_atk':
+        sorted.sort((a, b) => {
+          return sortDirection === 'asc' 
+            ? a.base_atk - b.base_atk
+            : b.base_atk - a.base_atk;
+        });
+        break;
+    }
+    
+    return sorted;
+  };
+
+  const isCardOwned = (cardId: number) => {
+    return userCards.some((c: any) => c.card_template_id === cardId);
+  };
+
   return (
     <>
       <Navbar />
@@ -310,53 +436,143 @@ export default function Collection() {
           })}
         </div>
         
-        <h2 className="text-2xl font-bold mb-4">Your card collection ({userCards.length} total cards)</h2>
-        {rootCards.length > 0 && (
-          <div className="flex flex-wrap gap-3 mt-10 justify-center mb-100">
-            {rootCards.map((rootCard: any) => {
-              const style = getRarityStyle(rootCard.rarity);
-              return (
-                <div 
-                  key={rootCard.templateId}
-                  onClick={() => openRootCardDetails(rootCard)}
-                  onMouseEnter={() => setHoveredCard(rootCard.templateId)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                  className={`relative border-2 p-2 w-37.5 cursor-pointer bg-gray-900 hover:bg-gray-800 transition-colors rounded-lg ${style.borderColor} ${style.aura || ''}`}
-                >
-                  {rootCard.totalQuantity > 1 && (
-                    <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold z-10">
-                      x{rootCard.totalQuantity}
-                    </div>
-                  )}
-                  {rootCard.image_url && (
-                    <img 
-                      src={rootCard.image_url} 
-                      alt={rootCard.name}
-                      className="w-full h-25 object-contain mb-2"
-                    />
-                  )}
-                  <div className={`font-semibold text-sm truncate text-center ${style.textColor}`}>
-                    {rootCard.name}
-                  </div>
-                  <div className={`text-xs text-center mt-1 ${style.textColor} opacity-75`}>
-                    {rootCard.rarity}
-                  </div>
-                  
-                  {hoveredCard === rootCard.templateId && (
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5">
-                      <p className={`font-semibold mb-1 ${style.textColor}`}>{rootCard.name}</p>
-                      <p className="text-gray-300 text-[10px]">{rootCard.description || 'No description'}</p>
-                      <p className={`text-[10px] mt-1 pt-1 ${style.textColor} opacity-75`}>{rootCard.series || 'Missing Series'} | {rootCard.type || 'Missing Type'}</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold">
+              <button
+                onClick={() => {
+                  setViewMode('your');
+                  refreshCollection();
+                }}
+                className={`px-2 py-1 rounded transition-colors ${viewMode === 'your' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+              >
+                Your
+              </button>
+              <span className="text-gray-500">/</span>
+              <button
+                onClick={() => {
+                  setViewMode('entire');
+                  groupAllCards();
+                }}
+                className={`px-2 py-1 rounded transition-colors ${viewMode === 'entire' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+              >
+                Entire
+              </button>
+              <span className="ml-2">card collection ({viewMode === 'your' ? userCards.length : allCards.length} total cards)</span>
+            </h2>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setSortBy('rarity')}
+                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'rarity' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                By Rarity
+              </button>
+              <button
+                onClick={() => setSortBy('base_price')}
+                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_price' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                By Price
+              </button>
+              <button
+                onClick={() => setSortBy('name')}
+                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'name' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                By Name
+              </button>
+              <button
+                onClick={() => setSortBy('quantity')}
+                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'quantity' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                By Quantity
+              </button>
+              <button
+                onClick={() => setSortBy('base_hp')}
+                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_hp' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                By HP
+              </button>
+              <button
+                onClick={() => setSortBy('base_def')}
+                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_def' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                By DEF
+              </button>
+              <button
+                onClick={() => setSortBy('base_atk')}
+                className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'base_atk' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                By ATK
+              </button>
+            </div>
+            <button
+              onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+              className="px-3 py-1 text-xs rounded transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
+              title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {sortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
+            </button>
+          </div>
+        
+        {getCurrentCards().length > 0 && (
+        <div className="flex flex-wrap gap-3 mt-10 justify-start mb-100">
+          {getSortedRootCards(getCurrentCards()).map((rootCard: any) => {
+            const style = getRarityStyle(rootCard.rarity);
+            const owned = viewMode === 'your' ? true : isCardOwned(rootCard.templateId);
+            
+            return (
+              <div 
+                key={rootCard.templateId}
+                onClick={() => viewMode === 'your' ? openRootCardDetails(rootCard) : null}
+                onMouseEnter={() => setHoveredCard(rootCard.templateId)}
+                onMouseLeave={() => setHoveredCard(null)}
+                className={`relative border-2 p-2 w-37.5 cursor-pointer transition-colors rounded-lg ${style.borderColor} ${style.aura || ''} ${
+                  !owned && viewMode === 'entire' ? 'opacity-40 grayscale hover:opacity-60' : 'bg-gray-900 hover:bg-gray-800'
+                }`}
+              >
+                {viewMode === 'your' && rootCard.totalQuantity > 1 && (
+                  <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold z-10">
+                    x{rootCard.totalQuantity}
+                  </div>
+                )}
+                {rootCard.image_url && (
+                  <img 
+                    src={rootCard.image_url} 
+                    alt={rootCard.name}
+                    className="w-full h-25 object-contain mb-2"
+                  />
+                )}
+                <div className={`font-semibold text-sm truncate text-center ${style.textColor}`}>
+                  {rootCard.name}
+                </div>
+                <div className={`text-xs text-center mt-1 ${style.textColor} opacity-75`}>
+                  {rootCard.rarity}
+                </div>
+                
+                {viewMode === 'entire' && rootCard.base_price && (
+                  <div className="text-xs text-center mt-1 text-green-500">
+                    ${rootCard.base_price.toFixed(2)}
+                  </div>
+                )}
+                
+                {hoveredCard === rootCard.templateId && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5">
+                    <p className={`font-semibold mb-1 ${style.textColor}`}>{rootCard.name}</p>
+                    <p className="text-gray-300 text-[10px]">{rootCard.description || 'No description'}</p>
+                    <p className={`text-[10px] mt-1 pt-1 ${style.textColor} opacity-75`}>{rootCard.series || 'Missing Series'} | {rootCard.type || 'Missing Type'}</p>
+                    {viewMode === 'entire' && rootCard.base_price && (
+                      <p className={`text-[10px] mt-1 pt-1 ${style.textColor}`}>Price: ${rootCard.base_price.toFixed(2)}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
         {/* Modal showing all variants of the selected card */}
-        {selectedRootCard && selectedVariants.length > 0 && (
+        {viewMode === 'your' && selectedRootCard && selectedVariants.length > 0 && (
           <div 
             onClick={() => { setSelectedRootCard(null); setSelectedVariants([]); }}
             className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"

@@ -100,9 +100,9 @@ model CardTemplates {
   description String?
   series    Series?
   type      Type?
-  base_hp   Int
-  base_def  Int
-  base_atk  Int
+  base_hp   Int?
+  base_def  Int?
+  base_atk  Int?
   base_price Float
   rarity    Rarity
   image_url String?

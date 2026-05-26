@@ -1,6 +1,6 @@
 import { Show, SignInButton, SignUpButton, UserAvatar, useClerk, useUser } from '@clerk/react';
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import { Bars3Icon, TrophyIcon, XMarkIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, TrophyIcon, XMarkIcon, SpeakerWaveIcon, SpeakerXMarkIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../lib/api';
@@ -31,6 +31,8 @@ export default function Navbar() {
     // Load mute preference from localStorage
     return localStorage.getItem('soundMuted') === 'true';
   });
+  const [sortBy, setSortBy] = useState<'default' | 'reward' | 'progress' | 'name'>('default');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Save mute preference to localStorage when it changes
   useEffect(() => {
@@ -125,6 +127,77 @@ export default function Navbar() {
     return <LoadingSkeleton />;
   }
 
+  const getSortedAchievements = () => {
+    const sorted = [...achievements];
+    
+    switch (sortBy) {
+      case 'reward':
+        const rewardPriority: Record<string, number> = {
+          'NONE': -1,
+          'CURRENCY': 0,
+          'CARD': 1,
+          'PACK': 2,
+          'COSMETIC': 3,
+          'STATUS': 4
+        };
+        sorted.sort((a, b) => {
+          const priorityA = rewardPriority[a.reward_type] ?? 99;
+          const priorityB = rewardPriority[b.reward_type] ?? 99;
+          if (priorityA !== priorityB) {
+            return sortDirection === 'asc' ? priorityA - priorityB : priorityB - priorityA;
+          }
+          if (a.reward_type === 'CURRENCY' && b.reward_type === 'CURRENCY') {
+            return sortDirection === 'asc' 
+              ? parseFloat(a.reward_value) - parseFloat(b.reward_value)
+              : parseFloat(b.reward_value) - parseFloat(a.reward_value);
+          }
+          return 0;
+        });
+        break;
+      case 'progress':
+        sorted.sort((a, b) => {
+          const progressA = getUserProgress(a.id);
+          const progressB = getUserProgress(b.id);
+          const isCompletedA = progressA.completed_at !== null;
+          const isCompletedB = progressB.completed_at !== null;
+          
+          // First, sort by completion status (incomplete first, completed last for ascending)
+          if (sortDirection === 'asc') {
+            if (isCompletedA !== isCompletedB) return isCompletedA ? 1 : -1;
+          } else {
+            if (isCompletedA !== isCompletedB) return isCompletedA ? -1 : 1;
+          }
+          
+          // Then sort by percentage
+          const targetA = a.value_int || a.value_float || 100;
+          const targetB = b.value_int || b.value_float || 100;
+          const percentA = (progressA.progress / targetA) * 100;
+          const percentB = (progressB.progress / targetB) * 100;
+          
+          return sortDirection === 'asc' ? percentA - percentB : percentB - percentA;
+        });
+        break;
+      case 'name':
+        sorted.sort((a, b) => {
+          return sortDirection === 'asc' 
+            ? a.name.localeCompare(b.name)
+            : b.name.localeCompare(a.name);
+        });
+        break;
+      default:
+        sorted.sort((a, b) => {
+          if (a.condition !== b.condition) {
+            const comparison = a.condition.localeCompare(b.condition);
+            return sortDirection === 'asc' ? comparison : -comparison;
+          }
+          return sortDirection === 'asc' ? a.id - b.id : b.id - a.id;
+        });
+        break;
+    }
+    
+    return sorted;
+  };
+
   const handleSignOut = async () => {
     await signOut();
     window.location.href = '/';
@@ -206,8 +279,63 @@ export default function Navbar() {
                     </MenuItem>
 
                     <MenuItem>
+                      <div className="flex gap-2 p-4 border-b border-gray-700">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSortBy('default');
+                          }}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'default' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                        >
+                          By Type
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSortBy('reward');
+                          }}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'reward' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                        >
+                          By Reward
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSortBy('progress');
+                          }}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'progress' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                        >
+                          By Progress
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSortBy('name');
+                          }}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'name' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                        >
+                          By Name
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                          }}
+                          className="px-3 py-1 text-xs rounded transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
+                          title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+                        >
+                          {sortDirection === 'asc' ? (
+                            <ArrowUpIcon className="w-4 h-4" />
+                          ) : (
+                            <ArrowDownIcon className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </MenuItem>
+
+                    <MenuItem>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-4">
-                        {achievements.map((achievement: any) => {
+                        {getSortedAchievements().map((achievement: any) => {
                           const progress = getUserProgress(achievement.id);
                           const isCompleted = progress.completed_at !== null;
                           return (
@@ -239,7 +367,7 @@ export default function Navbar() {
                                 <div className="flex-1 h-1 md:h-1.5 bg-gray-700 rounded-full overflow-hidden">
                                   <div 
                                     className="h-full bg-green-400 rounded-full transition-all duration-300"
-                                    style={{ width: `${Math.min(100, (progress.progress / (achievement.value_int || achievement.value_float || 100)) * 100)}%` }}
+                                    style={{ width: `${isCompleted ? 100 : Math.min(100, (progress.progress / (achievement.value_int || achievement.value_float || 1)) * 100)}%` }}
                                   />
                                 </div>
                                 <p className="text-gray-400 text-[9px] md:text-xs whitespace-nowrap">
@@ -326,7 +454,7 @@ export default function Navbar() {
         </div>
 
         <DisclosurePanel className="sm:hidden">
-          <div className="space-y-1 px-2 pt-2 pb-3">
+          <div className="absolute z-100 bg-gray-800 rounded-b-2xl space-y-1 px-2 pt-2 pb-3">
             <DisclosureButton
               key="home"
               as={Link}

@@ -367,9 +367,9 @@ function weightedRandom(min: number, max: number, skew: number = 1): number {
 
 function calculateSkew(price: number, priceRange: StatRange): number {
   const percent = (price - priceRange.min) / (priceRange.max - priceRange.min);
-  // Higher price = higher skew (pushes stats toward max)
-  // Skew ranges from 0.5 (low price) to 2.0 (high price)
-  return 0.5 + (percent * 1.5);
+  // Lower price = higher skew (pushes stats toward min)
+  // Higher price = lower skew (pushes stats toward max)
+  return 2.0 - (0.5 + (percent * 1.5));
 }
 
 function generateFallbackStats(rarity: string, existingStats?: {
@@ -886,7 +886,7 @@ app.post('/api/gacha/pack', async (req, res) => {
 
 async function generatePackCards(pack: Pack, userId: number) {
   const pulledCards: any[] = [];
-  
+
   // Get all card templates that match the pack criteria
   let availableCards = await prisma.cardTemplates.findMany();
   
@@ -911,21 +911,35 @@ async function generatePackCards(pack: Pack, userId: number) {
       !excludedSeries.includes(card.series)
     );
   }
-  
-  // Handle guaranteed cards
+
   const guaranteedCards: CardTemplates[] = [];
-  if (pack.guaranteed_card_ids && Array.isArray(pack.guaranteed_card_ids) && pack.guaranteed_count > 0) {
-    const guaranteedIds = pack.guaranteed_card_ids as number[];
+  if (pack.guaranteed_card_ids && pack.guaranteed_count > 0) {
+    let guaranteedIds: number[] = [];
+    
+    if (typeof pack.guaranteed_card_ids === 'number') {
+      guaranteedIds = [pack.guaranteed_card_ids];
+    } else if (typeof pack.guaranteed_card_ids === 'string') {
+      try {
+        const parsed = JSON.parse(pack.guaranteed_card_ids);
+        guaranteedIds = Array.isArray(parsed) ? parsed : [parsed];
+      } catch (e) {
+        guaranteedIds = pack.guaranteed_card_ids.split(',').map(Number);
+      }
+    } else if (Array.isArray(pack.guaranteed_card_ids)) {
+      guaranteedIds = pack.guaranteed_card_ids as number[];
+    }
+    
     for (let i = 0; i < Math.min(pack.guaranteed_count, guaranteedIds.length); i++) {
       const guaranteedCard = await prisma.cardTemplates.findUnique({
         where: { id: guaranteedIds[i] }
       });
       if (guaranteedCard) {
         guaranteedCards.push(guaranteedCard);
+      } else {
       }
     }
   }
-  
+
   // Calculate remaining cards to pull
   const remainingCards = pack.cards_count - guaranteedCards.length;
   
