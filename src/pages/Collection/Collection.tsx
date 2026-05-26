@@ -571,7 +571,7 @@ export default function Collection() {
                 {viewMode === 'your' && (
                   <button
                     onClick={(e) => toggleFavorite(rootCard.templateId, e)}
-                    className="absolute top-2 left-2 z-20 text-lg"
+                    className={`absolute top-1 left-1 z-20 text-sm bg-gray-800 p-1 rounded-xl border-2 ${style.borderColor}`}
                   >
                     {favorites.has(rootCard.templateId) ? '❤️' : '🩶'}
                   </button>
