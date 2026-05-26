@@ -97,6 +97,7 @@ export default function Collection() {
   const [selectedCardInfo, setSelectedCardInfo] = useState<any>(null);
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+  const [totalValue, setTotalValue] = useState(0);
 
   useEffect(() => {
     if (isSignedIn && user) {
@@ -110,6 +111,22 @@ export default function Collection() {
       loadFavorites();
     }
   }, [isSignedIn, user]);
+
+  useEffect(() => {
+  if (userCards.length > 0) {
+    const sum = userCards.reduce((acc, card: any) => {
+      const cardPrice = calculateCardPrice(
+        card.cardTemplate?.base_price,
+        card.quality,
+        card.enhancement
+      );
+      return acc + cardPrice;
+    }, 0);
+    setTotalValue(sum);
+  } else {
+    setTotalValue(0);
+  }
+}, [userCards]);
 
   const loadFavorites = async () => {
     const data = await apiClient.getFavorites();
@@ -506,7 +523,7 @@ export default function Collection() {
               >
                 Entire
               </button>
-              <span className="lg:ml-2">card collection ({viewMode === 'your' ? userCards.length : allCards.length} total cards)</span>
+              <span className="lg:ml-2">card collection ({viewMode === 'your' ? userCards.length : allCards.length} total cards{viewMode === 'your' ? `, $${totalValue.toFixed(2)} total value` : ''})</span>
             </h2>
           </div>
         <div className="flex flex-wrap items-center gap-2">
