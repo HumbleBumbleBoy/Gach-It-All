@@ -105,6 +105,17 @@ export default function Collection() {
     }
   }, [isSignedIn, user]);
 
+  useEffect(() => {
+    if (isSignedIn && user) {
+      loadFavorites();
+    }
+  }, [isSignedIn, user]);
+
+  const loadFavorites = async () => {
+    const data = await apiClient.getFavorites();
+    setFavorites(new Set(data.favorites));
+  };
+
   const fetchAllCards = async () => {
     const data = await apiClient.getCards();
     setAllCards(data.items);
@@ -405,17 +416,35 @@ export default function Collection() {
     return userCards.some((c: any) => c.card_template_id === cardId);
   };
 
-  const toggleFavorite = (cardId: number, e: React.MouseEvent) => {
+  const toggleFavorite = async (cardId: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    const newFavorited = !favorites.has(cardId);
+    
     setFavorites(prev => {
       const newFavorites = new Set(prev);
-      if (newFavorites.has(cardId)) {
-        newFavorites.delete(cardId);
-      } else {
+      if (newFavorited) {
         newFavorites.add(cardId);
+      } else {
+        newFavorites.delete(cardId);
       }
       return newFavorites;
     });
+    
+    // Save to database
+    try {
+      await apiClient.toggleFavorite(cardId, newFavorited);
+    } catch (error) {
+      setFavorites(prev => {
+        const newFavorites = new Set(prev);
+        if (newFavorited) {
+          newFavorites.delete(cardId);
+        } else {
+          newFavorites.add(cardId);
+        }
+        return newFavorites;
+      });
+      console.error('Failed to save favorite:', error);
+    }
   };
 
   return (

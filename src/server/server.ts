@@ -1116,6 +1116,59 @@ app.post('/api/heartbeat', async (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/api/cards/favorite', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { cardId, isFavourited } = req.body;
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true }
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  // Update all cards with this template_id to have the same favorite status
+  await prisma.userCards.updateMany({
+    where: {
+      user_id: user.id,
+      card_template_id: cardId
+    },
+    data: {
+      is_favourited: isFavourited
+    }
+  });
+  
+  res.json({ success: true });
+});
+
+app.get('/api/cards/favorites', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true }
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  const favoriteCards = await prisma.userCards.findMany({
+    where: {
+      user_id: user.id,
+      is_favourited: true
+    },
+    select: {
+      card_template_id: true
+    },
+    distinct: ['card_template_id']
+  });
+  
+  const favoriteIds = new Set(favoriteCards.map(c => c.card_template_id));
+  res.json({ favorites: Array.from(favoriteIds) });
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

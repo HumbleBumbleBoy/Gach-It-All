@@ -103,4 +103,21 @@ export const apiClient = {
     });
     return response.json();
   },
+
+  async toggleFavorite(cardId: number, isFavourited: boolean) {
+    const response = await fetch(`/api/cards/favorite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ cardId, isFavourited })
+    });
+    return response.json();
+  },
+
+  async getFavorites() {
+    const response = await fetch(`/api/cards/favorites`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
 };
