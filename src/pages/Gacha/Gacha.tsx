@@ -237,6 +237,9 @@ export default function Gacha() {
           setOpenedCards(result.cards);
           setFlippedCards(new Array(result.cards.length).fill(false));
           setShowCards(true);
+          
+          // Dispatch event to refresh achievements
+          window.dispatchEvent(new CustomEvent('achievements-updated'));
         } else {
           alert('Failed to open pack');
           stopDrumRoll();

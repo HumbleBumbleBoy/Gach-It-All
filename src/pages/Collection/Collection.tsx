@@ -369,6 +369,7 @@ export default function Collection() {
       await apiClient.sellCard(card.id);
       await refreshCollection();
       window.dispatchEvent(new Event('currency-updated'));
+      window.dispatchEvent(new CustomEvent('achievements-updated'))
       
       const updatedVariants = selectedVariants.map((v: any) => {
         if (v.key === variant.key) {
@@ -405,6 +406,7 @@ export default function Collection() {
       }
       await refreshCollection();
       window.dispatchEvent(new Event('currency-updated'));
+      window.dispatchEvent(new CustomEvent('achievements-updated'))
       
       const updatedVariants = selectedVariants.filter((v: any) => v.key !== variant.key);
       setSelectedVariants(updatedVariants);
@@ -460,6 +462,7 @@ export default function Collection() {
       }
       await refreshCollection();
       window.dispatchEvent(new Event('currency-updated'));
+      window.dispatchEvent(new CustomEvent('achievements-updated'))
       setSelectedRootCard(null);
       setSelectedVariants([]);
     } catch (error) {

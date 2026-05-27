@@ -33,6 +33,7 @@ export default function Navbar() {
   });
   const [sortBy, setSortBy] = useState<'default' | 'reward' | 'progress' | 'name'>('default');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [hideCompleted, setHideCompleted] = useState(false);
 
   // Save mute preference to localStorage when it changes
   useEffect(() => {
@@ -86,12 +87,14 @@ export default function Navbar() {
         console.log('Achievement unlocked:', data);
         setToast({ show: true, achievement: data.achievement, reward: data.reward });
         
-        const [newCurrency] = await Promise.all([
+        // Refresh all achievement data immediately
+        const [newCurrency, newUserAchievements] = await Promise.all([
           apiClient.getCurrency(),
-          apiClient.getUserStats()
+          apiClient.getUserAchievements()
         ]);
         
         setCurrency(newCurrency.currency ?? 0);
+        setUserAchievements(newUserAchievements.userAchievements || []);
         
         setTimeout(() => setToast(null), 5000);
       };
@@ -123,13 +126,33 @@ export default function Navbar() {
     return () => window.removeEventListener('currency-updated', handleCurrencyUpdate);
   }, [isSignedIn, user]);
 
+  useEffect(() => {
+    const handleAchievementsUpdate = () => {
+      if (isSignedIn && user) {
+        apiClient.getUserAchievements()
+          .then(data => setUserAchievements(data.userAchievements || []))
+          .catch(err => console.error('Failed to refresh achievements:', err));
+      }
+    };
+    
+    window.addEventListener('achievements-updated', handleAchievementsUpdate);
+    return () => window.removeEventListener('achievements-updated', handleAchievementsUpdate);
+  }, [isSignedIn, user]);
+
   if (!isLoaded) {
     return <LoadingSkeleton />;
   }
 
   const getSortedAchievements = () => {
-    const sorted = [...achievements];
-    
+    let sorted = [...achievements];
+
+    if (hideCompleted) {
+      sorted = sorted.filter(ach => {
+        const progress = getUserProgress(ach.id);
+        return progress.completed_at === null;
+      });
+    }
+
     switch (sortBy) {
       case 'reward':
         const rewardPriority: Record<string, number> = {
@@ -315,6 +338,15 @@ export default function Navbar() {
                           className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'name' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
                         >
                           By Name
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHideCompleted(!hideCompleted);
+                          }}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${hideCompleted ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                        >
+                          Hide Completed
                         </button>
                         <button
                           onClick={(e) => {
