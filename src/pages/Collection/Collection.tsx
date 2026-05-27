@@ -780,7 +780,7 @@ export default function Collection() {
                   </div>
                 )}
                 
-                <div className={`text-xs font-semibold ${style.textColor}`}>{rarity}</div>
+                <div className={`text-xs font-semibold ${style.textColor} text-center`}>{rarity}</div>
                 <div className="text-xl font-bold text-white mt-1">
                   {owned}
                   <span className="text-xs text-gray-500">/{total}</span>
