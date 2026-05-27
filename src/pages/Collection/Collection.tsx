@@ -537,37 +537,60 @@ export default function Collection() {
     }
   };
 
-  const sellAllButBest = async (_rootCard: any) => {
-    const allCardsArray = selectedVariants.flatMap((variant: any) => variant.cards);
-    
-    if (allCardsArray.length <= 1) {
-      alert('You only have 1 card of this type. Nothing to sell.');
-      return;
+  const sellAllUntilOne = async (_rootCard: any) => {
+    // Group cards by variant key (quality-enhancement combination)
+    const variantMap = new Map<string, any[]>();
+    for (const variant of selectedVariants) {
+      for (const card of variant.cards) {
+        const key = `${card.quality}-${card.enhancement}`;
+        if (!variantMap.has(key)) {
+          variantMap.set(key, []);
+        }
+        variantMap.get(key)!.push(card);
+      }
     }
     
+    // For each variant, keep the best card and sell the rest
+    const cardsToSell: any[] = [];
     const qualityOrderLocal = ['CRISP', 'GOOD', 'REGULAR', 'POOR', 'TARNISHED'];
     const enhancementOrderLocal = ['SIGNED', 'SHINY', 'FOILED', 'BASIC'];
     
-    const bestCard = allCardsArray.reduce((best, current) => {
-      const currentQualityIndex = qualityOrderLocal.indexOf(current.quality);
-      const bestQualityIndex = qualityOrderLocal.indexOf(best.quality);
-      
-      if (currentQualityIndex < bestQualityIndex) return current;
-      if (currentQualityIndex > bestQualityIndex) return best;
-      
-      const currentEnhancementIndex = enhancementOrderLocal.indexOf(current.enhancement);
-      const bestEnhancementIndex = enhancementOrderLocal.indexOf(best.enhancement);
-      
-      return currentEnhancementIndex < bestEnhancementIndex ? current : best;
-    });
+    for (const [_, cards] of variantMap) {
+      if (cards.length > 1) {
+        // Find the best card in this variant
+        const bestCard = cards.reduce((best: any, current: any) => {
+          const currentQualityIndex = qualityOrderLocal.indexOf(current.quality);
+          const bestQualityIndex = qualityOrderLocal.indexOf(best.quality);
+          
+          if (currentQualityIndex < bestQualityIndex) return current;
+          if (currentQualityIndex > bestQualityIndex) return best;
+          
+          const currentEnhancementIndex = enhancementOrderLocal.indexOf(current.enhancement);
+          const bestEnhancementIndex = enhancementOrderLocal.indexOf(best.enhancement);
+          
+          return currentEnhancementIndex < bestEnhancementIndex ? current : best;
+        });
+        
+        // Add all cards except the best to sell list
+        for (const card of cards) {
+          if (card.id !== bestCard.id) {
+            cardsToSell.push(card);
+          }
+        }
+      }
+    }
     
-    const cardsToSell = allCardsArray.filter(card => card.id !== bestCard.id);
-    const totalSellPrice = cardsToSell.reduce((sum, card) => {
-      const variant = selectedVariants.find(v => v.cards.includes(card));
+    if (cardsToSell.length === 0) {
+      alert('You already have only 1 of each variant. Nothing to sell.');
+      return;
+    }
+    
+    const totalSellPrice = cardsToSell.reduce((sum: number, card: any) => {
+      const variant = selectedVariants.find(v => v.cards.some((c: any) => c.id === card.id));
       return sum + (variant?.sellPrice || 0);
     }, 0);
     
-    if (!confirm(`Keep the best card (${bestCard.quality} • ${bestCard.enhancement}) and sell the other ${cardsToSell.length} cards for $${totalSellPrice.toFixed(2)}?`)) return;
+    if (!confirm(`Keep 1 of each variant (best quality/enhancement per variant) and sell ${cardsToSell.length} duplicate cards for $${totalSellPrice.toFixed(2)}?`)) return;
     
     try {
       for (const card of cardsToSell) {
@@ -780,14 +803,15 @@ export default function Collection() {
                   </div>
                 )}
                 
-                <div className={`text-xs font-semibold ${style.textColor} text-center`}>{rarity}</div>
                 <div className="text-xl font-bold text-white mt-1">
                   {owned}
                   <span className="text-xs text-gray-500">/{total}</span>
-                  <span className='float-right text-yellow-400 font-semibold'>
-                    <span className='text-xl'>{completed}</span>
-                    <span className='text-xs'>/{total}</span>
-                  </span>
+                  {completed > 0 && (
+                    <span className='float-right text-yellow-400 font-semibold'>
+                      <span className='text-xl'>{completed}</span>
+                      <span className='text-xs'>/{total}</span>
+                    </span>
+                  )}
                 </div>
                 
                 {/* Collection progress bar */}
@@ -1193,10 +1217,10 @@ export default function Collection() {
               <div className="flex gap-2 mt-4">
                 {selectedVariants.flatMap(v => v.cards).length > 1 && (
                   <button
-                    onClick={() => sellAllButBest(selectedRootCard)}
+                    onClick={() => sellAllUntilOne(selectedRootCard)}
                     className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded transition-colors"
                   >
-                    Sell All But Best
+                    Sell All Until 1
                   </button>
                 )}
                 <button
