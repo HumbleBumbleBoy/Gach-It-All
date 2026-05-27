@@ -127,4 +127,14 @@ export const apiClient = {
     });
     return response.json();
   },
+
+  async checkCardCompletion(cardTemplateId: number) {
+    const response = await fetch(`/api/user/check-completion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ cardTemplateId })
+    });
+    return response.json();
+  },
 };

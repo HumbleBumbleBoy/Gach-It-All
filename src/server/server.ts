@@ -1180,6 +1180,74 @@ app.get('/api/user/status', async (req, res) => {
   res.json({ status: user.user_status });
 });
 
+app.post('/api/user/check-completion', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { cardTemplateId } = req.body;
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true }
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  // Check if already rewarded
+  const existingReward = await prisma.userCardCompletion.findUnique({
+    where: {
+      user_id_card_template_id: {
+        user_id: user.id,
+        card_template_id: cardTemplateId
+      }
+    }
+  });
+  
+  if (existingReward) {
+    return res.json({ alreadyRewarded: true });
+  }
+  
+  // Check if user has all 20 variants
+  const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+  const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+  
+  let hasAll = true;
+  for (const quality of allQualities) {
+    for (const enhancement of allEnhancements) {
+      const card = await prisma.userCards.findFirst({
+        where: {
+          user_id: user.id,
+          card_template_id: cardTemplateId,
+          quality: quality as Quality,
+          enhancement: enhancement as Enhancement
+        }
+      });
+      if (!card) {
+        hasAll = false;
+        break;
+      }
+    }
+    if (!hasAll) break;
+  }
+  
+  if (hasAll) {
+    // Award 100 currency
+    await updateCurrency(user.id, 100, 'gain');
+    
+    // Record the completion
+    await prisma.userCardCompletion.create({
+      data: {
+        user_id: user.id,
+        card_template_id: cardTemplateId
+      }
+    });
+    
+    return res.json({ rewarded: true, amount: 100 });
+  }
+  
+  res.json({ notCompleted: true });
+});
+
 const lastHeartbeat = new Map();
 app.post('/api/heartbeat', async (req, res) => {
   const auth = getAuth(req);

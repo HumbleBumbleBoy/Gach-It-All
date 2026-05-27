@@ -95,7 +95,7 @@ export default function Collection() {
   const [rootCards, setRootCards] = useState<any[]>([]);
   const [selectedRootCard, setSelectedRootCard] = useState<any>(null);
   const [selectedVariants, setSelectedVariants] = useState<any[]>([]);
-  const [sortBy, setSortBy] = useState<'rarity' | 'name' | 'base_price' | 'quantity' | 'base_hp' | 'base_def' | 'base_atk'>('rarity');
+  const [sortBy, setSortBy] = useState<'rarity' | 'name' | 'base_price' | 'quantity' | 'completion' | 'base_hp' | 'base_def' | 'base_atk' >('rarity');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [viewMode, setViewMode] = useState<'your' | 'entire'>('entire');
   const [selectedCardInfo, setSelectedCardInfo] = useState<any>(null);
@@ -106,6 +106,9 @@ export default function Collection() {
   const [rarityCounts, setRarityCounts] = useState<Record<string, number>>({});
   const [totalCardsPerRarity, setTotalCardsPerRarity] = useState<Record<string, number>>({});
   const [priorityEnhancements, setPriorityEnhancements] = useState(false);
+  const [completedRewardsGiven, setCompletedRewardsGiven] = useState<Set<number>>(new Set());
+  const [completedCardsCount, setCompletedCardsCount] = useState(0);
+  const [completedCardsPerRarity, setCompletedCardsPerRarity] = useState<Record<string, number>>({});
 
   // Initialize totals from allCards
   useEffect(() => {
@@ -124,6 +127,116 @@ export default function Collection() {
       setTotalCardsPerRarity(totals);
     }
   }, [allCards]);
+
+  useEffect(() => {
+    if (!isSignedIn || !rootCards.length) return;
+    
+    const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+    const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+    
+    const checkCompletions = async () => {
+      for (const rootCard of rootCards) {
+        const hasAllVariants = allQualities.every(quality =>
+          allEnhancements.every(enhancement => {
+            const variant = rootCard.variants?.find((v: any) => 
+              v.quality === quality && v.enhancement === enhancement
+            );
+            return variant && variant.quantity > 0;
+          })
+        );
+        
+        if (hasAllVariants && !completedRewardsGiven.has(rootCard.templateId)) {
+          try {
+            const data = await apiClient.checkCardCompletion(rootCard.templateId);
+            
+            if (data.rewarded) {
+              setCompletedRewardsGiven(prev => new Set([...prev, rootCard.templateId]));
+              
+              // Show toast
+              const toast = document.createElement('div');
+              toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-in slide-in-from-right duration-500';
+              toast.textContent = `Completed "${rootCard.name}"! +100 currency!`;
+              document.body.appendChild(toast);
+              setTimeout(() => toast.remove(), 3000);
+              
+              // Refresh currency display
+              window.dispatchEvent(new Event('currency-updated'));
+            }
+          } catch (error) {
+            console.error('Failed to check completion:', error);
+          }
+        }
+      }
+    };
+    
+    checkCompletions();
+  }, [rootCards, isSignedIn, completedRewardsGiven]);
+
+  useEffect(() => {
+    if (!isSignedIn || rootCards.length === 0) {
+      setCompletedCardsCount(0);
+      return;
+    }
+
+    const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+    const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+    
+    let completed = 0;
+    for (const rootCard of rootCards) {
+      // Check if user has ALL 20 variants for this card
+      const hasAllVariants = allQualities.every(quality =>
+        allEnhancements.every(enhancement => {
+          const variant = rootCard.variants?.find((v: any) => 
+            v.quality === quality && v.enhancement === enhancement
+          );
+          return variant && variant.quantity > 0;
+        })
+      );
+      
+      if (hasAllVariants) {
+        completed++;
+      }
+    }
+    
+    setCompletedCardsCount(completed);
+  }, [rootCards, isSignedIn]);
+
+  useEffect(() => {
+    if (!isSignedIn || rootCards.length === 0) {
+      const zeros: Record<string, number> = {};
+      RARITY_CATEGORIES.forEach(rarity => {
+        zeros[rarity] = 0;
+      });
+      setCompletedCardsPerRarity(zeros);
+      return;
+    }
+
+    const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+    const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+    
+    const completedByRarity: Record<string, number> = {};
+    RARITY_CATEGORIES.forEach(rarity => {
+      completedByRarity[rarity] = 0;
+    });
+    
+    for (const rootCard of rootCards) {
+      // Check if user has ALL 20 variants for this card
+      const hasAllVariants = allQualities.every(quality =>
+        allEnhancements.every(enhancement => {
+          const variant = rootCard.variants?.find((v: any) => 
+            v.quality === quality && v.enhancement === enhancement
+          );
+          return variant && variant.quantity > 0;
+        })
+      );
+      
+      if (hasAllVariants && rootCard.rarity) {
+        completedByRarity[rootCard.rarity] = (completedByRarity[rootCard.rarity] || 0) + 1;
+      }
+    }
+    
+    setCompletedCardsPerRarity(completedByRarity);
+  }, [rootCards, isSignedIn]);
 
   // Set zeros when not logged in
   useEffect(() => {
@@ -527,6 +640,14 @@ export default function Collection() {
             : (b.totalQuantity || 0) - (a.totalQuantity || 0);
         });
         break;
+      case 'completion':
+        filtered.sort((a, b) => {
+          const totalVariants = 20; // 5 qualities × 4 enhancements
+          const completionA = a.variants?.length / totalVariants;
+          const completionB = b.variants?.length / totalVariants;
+          return sortDirection === 'asc' ? completionA - completionB : completionB - completionA;
+        });
+        break;
       case 'base_hp':
         filtered.sort((a, b) => {
           return sortDirection === 'asc' 
@@ -641,15 +762,35 @@ export default function Collection() {
             const style = getRarityStyle(rarity);
             const owned = rarityCounts[rarity] || 0;
             const total = totalCardsPerRarity[rarity] || 0;
+            const completed = completedCardsPerRarity[rarity] || 0;
             const percentage = total > 0 ? (owned / total) * 100 : 0;
+            const completionPercentage = total > 0 ? (completed / total) * 100 : 0;
             
             return (
               <div 
                 key={rarity}
-                className={`bg-gray-900 rounded-lg p-3 border-2 ${style.borderColor} ${style.aura || ''}`}
+                className={`bg-gray-900 rounded-lg p-3 border-2 ${style.borderColor} ${style.aura || ''} relative`}
               >
+                {completed === total && total > 0 && (
+                  <div className="absolute -top-2 -right-2 z-10">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-yellow-400 rounded-full blur-sm opacity-50 animate-pulse"></div>
+                      <span className="relative text-yellow-400 text-xl drop-shadow-lg">⭐</span>
+                    </div>
+                  </div>
+                )}
+                
                 <div className={`text-xs font-semibold ${style.textColor}`}>{rarity}</div>
-                <div className="text-xl font-bold text-white mt-1">{owned}<span className="text-xs text-gray-500">/{total}</span></div>
+                <div className="text-xl font-bold text-white mt-1">
+                  {owned}
+                  <span className="text-xs text-gray-500">/{total}</span>
+                  <span className='float-right text-yellow-400 font-semibold'>
+                    <span className='text-xl'>{completed}</span>
+                    <span className='text-xs'>/{total}</span>
+                  </span>
+                </div>
+                
+                {/* Collection progress bar */}
                 <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2 overflow-hidden">
                   <div 
                     className={`h-1.5 rounded-full transition-all duration-300 ${
@@ -666,43 +807,62 @@ export default function Collection() {
                     style={{ width: `${percentage}%` }}
                   />
                 </div>
+                
+                {/* Completed cards progress bar */}
+                {completed > 0 && (
+                  <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1 overflow-hidden">
+                    <div 
+                      className="h-1.5 rounded-full transition-all duration-300 bg-yellow-500"
+                      style={{ width: `${completionPercentage}%` }}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
         
-        <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-bold">
-           <button
-              onClick={() => {
-                if (!isSignedIn) {
-                  alert('Please sign in to view your collection');
-                  return;
-                }
-                setViewMode('your');
-                localStorage.setItem('collectionViewMode', 'your');
-                refreshCollection();
-              }}
-              className={`px-2 py-1 rounded transition-colors ${viewMode === 'your' && isSignedIn ? 'text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              Your
-            </button>
-            <span className="text-gray-500">/</span>
-            <button
-              onClick={() => {
-                setViewMode('entire');
-                localStorage.setItem('collectionViewMode', 'entire');
-                groupAllCards(allCards);
-              }}
-              className={`px-2 py-1 rounded transition-colors ${viewMode === 'entire' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              Entire
-            </button>
-            <span className="lg:ml-2">
-              card collection ({viewMode === 'your' && isSignedIn ? userCards.length : allCards.length} total cards
-              {viewMode === 'your' && isSignedIn ? `, $${totalValue.toFixed(2)} total value` : ''})
-            </span>
-          </h2>
+        <div className="flex flex-col gap-1 mb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold">
+              <button
+                onClick={() => {
+                  if (!isSignedIn) {
+                    alert('Please sign in to view your collection');
+                    return;
+                  }
+                  setViewMode('your');
+                  localStorage.setItem('collectionViewMode', 'your');
+                  refreshCollection();
+                }}
+                className={`px-2 py-1 rounded transition-colors ${viewMode === 'your' && isSignedIn ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+              >
+                Your
+              </button>
+              <span className="text-gray-500">/</span>
+              <button
+                onClick={() => {
+                  setViewMode('entire');
+                  localStorage.setItem('collectionViewMode', 'entire');
+                  groupAllCards(allCards);
+                }}
+                className={`px-2 py-1 rounded transition-colors ${viewMode === 'entire' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+              >
+                Entire
+              </button>
+              <span>Collection</span>
+              <span className="text-gray-400 ml-2 font-normal text-base">
+                ({viewMode === 'your' && isSignedIn ? userCards.length : allCards.length} total cards)
+              </span>
+            </h2>
+          </div>
+          
+          {viewMode === 'your' && isSignedIn && (
+            <div className="flex gap-4 text-sm text-gray-400">
+              <span>Total value: ${totalValue.toFixed(2)}</span>
+              {completedCardsCount > 0 && <span>Completed cards: {completedCardsCount}</span>}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -730,6 +890,12 @@ export default function Collection() {
               className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'quantity' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
             >
               By Quantity
+            </button>
+            <button
+              onClick={() => setSortBy('completion')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${sortBy === 'completion' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              By Completion
             </button>
             <button
               onClick={() => setSortBy('base_hp')}
@@ -783,7 +949,52 @@ export default function Collection() {
                   className={`relative border-2 p-2 w-37.5 cursor-pointer transition-colors rounded-lg ${style.borderColor} ${style.aura || ''} ${
                     !owned && viewMode === 'entire' ? 'opacity-40 grayscale hover:opacity-60' : 'bg-gray-900 hover:bg-gray-800'
                   }`}
+                  style={(() => {
+                    const hasSignedCrisp = rootCard.variants?.some((v: any) => 
+                      v.enhancement === 'SIGNED' && v.quality === 'CRISP' && v.quantity > 0
+                    );
+                    if (hasSignedCrisp) {
+                      const rarityColor = style.textColor.replace('text-', '');
+                      let glowColor = '';
+                      
+                      switch (rarityColor) {
+                        case 'gray-400': glowColor = '107,114,128'; break;
+                        case 'green-400': glowColor = '74,222,128'; break;
+                        case 'blue-400': glowColor = '96,165,250'; break;
+                        case 'purple-400': glowColor = '192,132,252'; break;
+                        case 'pink-400': glowColor = '244,114,182'; break;
+                        case 'orange-400': glowColor = '251,146,60'; break;
+                        case 'yellow-400': glowColor = '250,204,21'; break;
+                        case 'red-400': glowColor = '248,113,113'; break;
+                        default: glowColor = '255,255,255';
+                      }
+                      
+                      return { boxShadow: `0 0 16px 1.5px rgba(${glowColor}, 0.5)` };
+                    }
+                    return {};
+                  })()}
                 >
+                  {viewMode === 'your' && isSignedIn && (() => {
+                    const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+                    const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+                    
+                    const hasAllVariants = allQualities.every(quality =>
+                      allEnhancements.every(enhancement => {
+                        const variant = rootCard.variants?.find((v: any) => 
+                          v.quality === quality && v.enhancement === enhancement
+                        );
+                        return variant && variant.quantity > 0;
+                      })
+                    );
+                    
+                    return hasAllVariants ? (
+                      <>
+                        <div className="absolute inset-0 rounded-lg pointer-events-none z-5 overflow-hidden">
+                          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 opacity-50 to-transparent animate-shine skew-x-12"></div>
+                        </div>
+                      </>
+                    ) : null;
+                  })()}
                   {viewMode === 'your' && isSignedIn && rootCard.totalQuantity > 1 && (
                     <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold z-10">
                       x{rootCard.totalQuantity}
@@ -804,12 +1015,44 @@ export default function Collection() {
                       {favorites.has(rootCard.templateId) ? '❤️' : '🩶'}
                     </button>
                   )}
+
+                  {viewMode === 'your' && isSignedIn && (() => {
+                    const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+                    const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+                    
+                    const hasAllVariants = allQualities.every(quality =>
+                      allEnhancements.every(enhancement => {
+                        const variant = rootCard.variants?.find((v: any) => 
+                          v.quality === quality && v.enhancement === enhancement
+                        );
+                        return variant && variant.quantity > 0;
+                      })
+                    );
+                    
+                    return hasAllVariants ? (
+                      
+                      <div className="absolute bottom-1 right-1 z-10 text-yellow-400 text-sm">
+                        ⭐
+                      </div>
+                    ) : null;
+                  })()}
+
                   <div className={`font-semibold text-sm truncate text-center ${style.textColor}`}>
                     {rootCard.name}
                   </div>
                   <div className={`text-xs text-center mt-1 ${style.textColor} opacity-75`}>
                     {rootCard.rarity}
                   </div>
+
+                  {viewMode === 'your' && isSignedIn && rootCard.variants && (
+                    <div className="absolute bottom-0 left-1.5 z-10">
+                      <div className="">
+                        <span className="text-[10px] text-yellow-400 font-mono font-bold">
+                          {rootCard.variants.length}/20
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   
                   {viewMode === 'entire' && rootCard.base_price && (
                     <div className="text-xs text-center mt-1 text-green-500">

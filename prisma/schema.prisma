@@ -22,6 +22,7 @@ model User {
   userAchievements UserAchievement[]
   userInventory    UserInventory[]
   userStats        UserStats?  // One-to-one relation
+  userCardCompletions UserCardCompletion[]
 }
 
 enum UserStatus {
@@ -79,6 +80,18 @@ model UserCards {
   cardTemplate CardTemplates @relation(fields: [card_template_id], references: [id])
 }
 
+model UserCardCompletion {
+  id               Int      @id @default(autoincrement())
+  user_id          Int
+  card_template_id Int
+  completed_at     DateTime @default(now())
+  
+  user         User          @relation(fields: [user_id], references: [id])
+  cardTemplate CardTemplates @relation(fields: [card_template_id], references: [id])
+  
+  @@unique([user_id, card_template_id])
+}
+
 enum Quality {
   TARNISHED
   POOR
@@ -108,6 +121,7 @@ model CardTemplates {
   image_url String?
   
   userCards UserCards[]
+  userCardCompletions UserCardCompletion[]
 }
 
 enum Series { // add stuff as i go

@@ -3,3 +3,18 @@
 button:hover {
     cursor: pointer;
 }
+
+@keyframes shine {
+  0% {
+    transform: translateX(-90%)  rotate(50deg);
+  }
+  100% {
+    transform: translateX(90%)  rotate(50deg);
+  }
+}
+
+.animate-shine {
+  animation: shine 5s infinite ease-in-out;
+  animation-delay: 2s;
+  filter: blur(6px);
+}
