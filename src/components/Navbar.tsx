@@ -34,6 +34,7 @@ export default function Navbar() {
   const [sortBy, setSortBy] = useState<'default' | 'reward' | 'progress' | 'name'>('default');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [hideCompleted, setHideCompleted] = useState(false);
+  const [userStatus, setUserStatus] = useState<string>('STANDARD');
 
   // Save mute preference to localStorage when it changes
   useEffect(() => {
@@ -44,6 +45,25 @@ export default function Navbar() {
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
+  };
+
+  useEffect(() => {
+    if (isSignedIn && user) {
+      apiClient.getUserStatus()
+        .then(data => setUserStatus(data.status))
+        .catch(err => console.error('Failed to fetch user status:', err));
+    }
+  }, [isSignedIn, user]);
+
+  const getStatusBorderColor = () => {
+    switch (userStatus) {
+      case 'SPECIAL':
+        return 'ring-2 ring-green-500 ring-offset-2 ring-offset-gray-800';
+      case 'CREATOR':
+        return 'ring-2 ring-red-500 ring-offset-2 ring-offset-gray-800';
+      default:
+        return '';
+    }
   };
 
   useEffect(() => {
@@ -435,7 +455,9 @@ export default function Navbar() {
                   <MenuButton className="relative flex rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
                     <span className="absolute -inset-1.5" />
                     <span className="sr-only">Open user menu</span>
-                    <UserAvatar />
+                    <div className={`rounded-full ${getStatusBorderColor()}`}>
+                      <UserAvatar />
+                    </div>
                   </MenuButton>
 
                   <MenuItems

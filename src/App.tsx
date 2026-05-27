@@ -47,55 +47,83 @@ function App() {
           </p>
         </div>
 
-        {/* Quality & Enhancement Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          {/* Card Quality */}
           <div className="bg-gray-800/50 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-white mb-3">Card Quality</h2>
-            <div className="space-y-2 mt-5">
-              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Tarnished</span>
-                <span className="text-gray-500 text-sm">0.3x price multiplier</span>
+            <h2 className="text-xl font-bold text-white mb-4 text-center">Card Quality</h2>
+            <div className="space-y-3 mt-6">
+              <div className="flex justify-between items-center p-2 rounded-lg bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-300 font-medium">Tarnished</span>
+                </div>
+                <span className="text-gray-400 text-sm">0.30x price</span>
               </div>
-              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Poor</span>
-                <span className="text-gray-500 text-sm">0.66x price multiplier</span>
+              <div className="flex justify-between items-center p-2 rounded-lg bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-300 font-medium">Poor</span>
+                </div>
+                <span className="text-gray-400 text-sm">0.66x price</span>
               </div>
-              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Regular</span>
-                <span className="text-gray-500 text-sm">1x price multiplier</span>
+              <div className="flex justify-between items-center p-2 rounded-lg bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-300 font-medium">Regular</span>
+                </div>
+                <span className="text-gray-400 text-sm">1.00x price</span>
               </div>
-              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Good</span>
-                <span className="text-gray-500 text-sm">1.25x price multiplier</span>
+              <div className="flex justify-between items-center p-2 rounded-lg bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-300 font-medium">Good</span>
+                </div>
+                <span className="text-gray-400 text-sm">1.25x price</span>
               </div>
-              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Crisp</span>
-                <span className="text-gray-500 text-sm">1.5x price multiplier</span>
+              <div className="flex justify-between items-center p-2 rounded-lg bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-300 font-medium">Crisp</span>
+                </div>
+                <span className="text-gray-400 text-sm">1.50x price</span>
               </div>
             </div>
           </div>
 
+          {/* Enhancements & Effects */}
           <div className="bg-gray-800/50 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-white">Enhancements & Effects</h2>
-            <div className="space-y-5 mt-5">
-              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Basic</span>
-                <span className="text-gray-500 text-sm">1x price</span>
+            <h2 className="text-xl font-bold text-white text-center">Enhancements & Effects</h2>
+            <div className="space-y-3 mt-6">
+              <div className="flex justify-between items-center p-2 rounded-lg bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-300 font-medium">Basic</span>
+                </div>
+                <span className="text-gray-400 text-sm">1.00x price</span>
               </div>
-              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Foiled</span>
-                <span className="text-gray-500 text-sm">1.25x price, +50% DEF</span>
+              <div className="flex justify-between items-center p-2 rounded-lg bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-300 font-medium">Foiled</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-gray-400 text-sm block">1.25x price</span>
+                  <span className="text-gray-400 text-xs">+50% DEF</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Shiny</span>
-                <span className="text-gray-500 text-sm">1.5x price, +50% HP</span>
+              <div className="flex justify-between items-center p-2 rounded-lg bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-300 font-medium">Shiny</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-gray-400 text-sm block">1.50x price</span>
+                  <span className="text-gray-400 text-xs">+50% HP</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                <span className="text-gray-400">Signed</span>
-                <span className="text-gray-500 text-sm">2x price, +50% ATK</span>
+              <div className="flex justify-between items-center p-2 rounded-lg bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-300 font-medium">Signed</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-gray-400 text-sm block">2.00x price</span>
+                  <span className="text-gray-400 text-xs">+50% ATK</span>
+                </div>
               </div>
             </div>
-            <p className="text-gray-500 text-xs mt-3">Enhancements stack with quality modifiers</p>
+            <p className="text-gray-500 text-xs text-center pt-5">Enhancements prices stack with quality modifiers</p>
           </div>
         </div>
 

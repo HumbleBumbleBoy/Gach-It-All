@@ -1166,6 +1166,20 @@ async function applyQualityAndEnhancement(card: CardTemplates, pack: Pack, userI
   return userCard;
 }
 
+app.get('/api/user/status', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { user_status: true }
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  res.json({ status: user.user_status });
+});
+
 const lastHeartbeat = new Map();
 app.post('/api/heartbeat', async (req, res) => {
   const auth = getAuth(req);

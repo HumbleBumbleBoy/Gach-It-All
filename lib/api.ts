@@ -120,4 +120,11 @@ export const apiClient = {
     });
     return response.json();
   },
+
+  async getUserStatus() {
+    const response = await fetch(`/api/user/status`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
 };
