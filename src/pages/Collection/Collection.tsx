@@ -148,6 +148,7 @@ export default function Collection() {
       setTotalValue(0);
       if (viewMode === 'your') {
         setViewMode('entire');
+        localStorage.setItem('collectionViewMode', 'entire');
       }
     }
   }, [isSignedIn, user]);
@@ -168,6 +169,13 @@ export default function Collection() {
       setTotalValue(0);
     }
   }, [userCards, isSignedIn]);
+
+  useEffect(() => {
+    const savedViewMode = localStorage.getItem('collectionViewMode');
+    if (savedViewMode === 'your' || savedViewMode === 'entire') {
+      setViewMode(savedViewMode);
+    }
+  }, []);
 
   const loadFavorites = async () => {
     if (!isSignedIn) return;
@@ -410,7 +418,7 @@ export default function Collection() {
     }
   };
 
-  const sellAllButBest = async (rootCard: any) => {
+  const sellAllButBest = async (_rootCard: any) => {
     // Flatten all cards from all variants
     const allCardsArray = selectedVariants.flatMap((variant: any) => variant.cards);
     
@@ -495,7 +503,7 @@ export default function Collection() {
           let priceA, priceB;
           
           if (viewMode === 'your' && isSignedIn) {
-            // Find the highest price among actually owned variants
+            // Find the highest price among owned variants
             priceA = a.variants?.length > 0 
               ? Math.max(...a.variants.map((v: any) => v.cardPrice))
               : 0;
@@ -503,7 +511,6 @@ export default function Collection() {
               ? Math.max(...b.variants.map((v: any) => v.cardPrice))
               : 0;
           } else {
-            // For 'Entire' view, use base price since you don't own any
             priceA = a.base_price || 0;
             priceB = b.base_price || 0;
           }
@@ -626,13 +633,14 @@ export default function Collection() {
         
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">
-            <button
+           <button
               onClick={() => {
                 if (!isSignedIn) {
                   alert('Please sign in to view your collection');
                   return;
                 }
                 setViewMode('your');
+                localStorage.setItem('collectionViewMode', 'your');
                 refreshCollection();
               }}
               className={`px-2 py-1 rounded transition-colors ${viewMode === 'your' && isSignedIn ? 'text-white' : 'text-gray-400 hover:text-white'}`}
@@ -643,6 +651,7 @@ export default function Collection() {
             <button
               onClick={() => {
                 setViewMode('entire');
+                localStorage.setItem('collectionViewMode', 'entire');
                 groupAllCards(allCards);
               }}
               className={`px-2 py-1 rounded transition-colors ${viewMode === 'entire' ? 'text-white' : 'text-gray-400 hover:text-white'}`}

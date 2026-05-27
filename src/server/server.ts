@@ -666,6 +666,57 @@ app.post('/api/user/reset-collection', async (req, res) => {
   }
 });
 
+app.post('/api/user/clear-all-data', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  try {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: auth.userId },
+      select: { id: true }
+    });
+    
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // Delete in correct order to avoid foreign key constraints
+    await prisma.userCards.deleteMany({ where: { user_id: user.id } });
+    await prisma.userInventory.deleteMany({ where: { user_id: user.id } });
+    await prisma.userAchievement.deleteMany({ where: { user_id: user.id } });
+    await prisma.userStats.deleteMany({ where: { user_id: user.id } });
+    
+    // Reset user currency to 0
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { currency: 0 }
+    });
+    
+    // Create fresh stats record
+    await prisma.userStats.create({
+      data: {
+        user_id: user.id,
+        total_pulls: 0,
+        unique_cards: 0,
+        wins: 0,
+        losses: 0,
+        trades_completed: 0,
+        purchases_made: 0,
+        total_play_minutes: 0,
+        total_cards_sold: 0,
+        consecutive_wins: 0,
+        highest_win_streak: 0,
+        consecutive_losses: 0,
+        highest_lose_streak: 0,
+        battle_rating: 1000
+      }
+    });
+    
+    res.json({ success: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to reset all data';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 app.get('/api/achievements', async (_req, res) => {
   const achievements = await prisma.achievement.findMany();
   res.json({ achievements });
