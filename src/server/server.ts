@@ -870,6 +870,88 @@ app.post('/api/cards/sell', async (req, res) => {
   }
 });
 
+app.post('/api/cards/batch-sell', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { cardIds } = req.body;
+  
+  if (!cardIds || !Array.isArray(cardIds) || cardIds.length === 0) {
+    return res.status(400).json({ error: 'No cards to sell' });
+  }
+  
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Get all cards with user in one query
+      const cards = await tx.userCards.findMany({
+        where: { 
+          id: { in: cardIds },
+          user: { clerkId: auth.userId }
+        },
+        include: { cardTemplate: true, user: { select: { id: true, currency: true } } }
+      });
+      
+      if (cards.length === 0) throw new Error('No valid cards found');
+      
+      const qualityMultipliers = { TARNISHED: 0.3, POOR: 0.66, REGULAR: 1, GOOD: 1.25, CRISP: 1.5 };
+      const enhancementMultipliers = { BASIC: 1, FOILED: 1.25, SHINY: 1.5, SIGNED: 2 };
+      
+      let totalSellPrice = 0;
+      for (const card of cards) {
+        const sellPrice = roundCurrency(card.cardTemplate.base_price * 
+          (qualityMultipliers[card.quality] || 1) * 
+          (enhancementMultipliers[card.enhancement] || 1) * 0.9);
+        totalSellPrice += sellPrice;
+      }
+      
+      // Update everything in parallel
+      await Promise.all([
+        tx.user.update({
+          where: { id: cards[0].user.id },
+          data: { currency: { increment: totalSellPrice } }
+        }),
+        tx.userStats.update({
+          where: { user_id: cards[0].user.id },
+          data: { 
+            total_currency_gained: { increment: totalSellPrice },
+            total_cards_sold: { increment: cards.length }
+          }
+        }),
+        tx.userCards.deleteMany({
+          where: { id: { in: cardIds } }
+        })
+      ]);
+      
+      // Get updated unique count
+      const uniqueTemplates = await tx.userCards.findMany({
+        where: { user_id: cards[0].user.id },
+        select: { card_template_id: true },
+        distinct: ['card_template_id']
+      });
+      
+      await tx.userStats.update({
+        where: { user_id: cards[0].user.id },
+        data: { unique_cards: uniqueTemplates.length }
+      });
+      
+      return { totalSellPrice, cardCount: cards.length, userId: cards[0].user.id };
+    });
+    
+    // Async achievements
+    Promise.all([
+      checkAndUpdateAchievements(result.userId, Condition.CARDS_SOLD),
+      checkAndUpdateAchievements(result.userId, Condition.CARDS_COLLECTED)
+    ]).catch(console.error);
+    
+    res.json({ success: true, totalSellPrice: result.totalSellPrice, cardCount: result.cardCount });
+    
+  } catch (error) {
+    console.error('Failed to sell cards:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to sell cards';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 app.get('/api/packs', async (_req, res) => {
   try {
     const packs = await prisma.pack.findMany({

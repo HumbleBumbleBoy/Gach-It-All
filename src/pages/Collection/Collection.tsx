@@ -550,7 +550,7 @@ export default function Collection() {
       }
     }
     
-    // For each variant, keep the best card and sell the rest
+    // For each variant, keep the best card and collect the rest to sell
     const cardsToSell: any[] = [];
     const qualityOrderLocal = ['CRISP', 'GOOD', 'REGULAR', 'POOR', 'TARNISHED'];
     const enhancementOrderLocal = ['SIGNED', 'SHINY', 'FOILED', 'BASIC'];
@@ -593,12 +593,13 @@ export default function Collection() {
     if (!confirm(`Keep 1 of each variant (best quality/enhancement per variant) and sell ${cardsToSell.length} duplicate cards for $${totalSellPrice.toFixed(2)}?`)) return;
     
     try {
-      for (const card of cardsToSell) {
-        await apiClient.sellCard(card.id);
-      }
+      // BATCH SELL
+      const cardIds = cardsToSell.map(card => card.id);
+      await apiClient.batchSellCards(cardIds);
+      
       await refreshCollection();
       window.dispatchEvent(new Event('currency-updated'));
-      window.dispatchEvent(new CustomEvent('achievements-updated'))
+      window.dispatchEvent(new CustomEvent('achievements-updated'));
       setSelectedRootCard(null);
       setSelectedVariants([]);
     } catch (error) {
@@ -803,6 +804,7 @@ export default function Collection() {
                   </div>
                 )}
                 
+                <div className={`text-xs font-semibold ${style.textColor} text-center`}>{rarity}</div>
                 <div className="text-xl font-bold text-white mt-1">
                   {owned}
                   <span className="text-xs text-gray-500">/{total}</span>

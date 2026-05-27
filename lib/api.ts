@@ -137,4 +137,14 @@ export const apiClient = {
     });
     return response.json();
   },
+
+  async batchSellCards(cardIds: number[]) {
+    const response = await fetch(`/api/cards/batch-sell`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ cardIds })
+    });
+    return response.json();
+  },
 };
