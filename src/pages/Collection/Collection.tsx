@@ -63,6 +63,8 @@ const rarityOrder: Record<string, number> = {
   SPECIAL: 7
 };
 
+const RARITY_CATEGORIES = ['COMMON', 'UNCOMMON', 'SPARSE', 'RARE', 'UBER_RARE', 'MYTHICAL', 'LEGENDARY', 'SPECIAL'];
+
 function getRarityStyle(rarity: string) {
   return rarityConfig[rarity] || rarityConfig.COMMON;
 }
@@ -93,27 +95,66 @@ export default function Collection() {
   const [selectedVariants, setSelectedVariants] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState<'rarity' | 'name' | 'base_price' | 'quantity' | 'base_hp' | 'base_def' | 'base_atk'>('rarity');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [viewMode, setViewMode] = useState<'your' | 'entire'>('your');
+  const [viewMode, setViewMode] = useState<'your' | 'entire'>('entire');
   const [selectedCardInfo, setSelectedCardInfo] = useState<any>(null);
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [totalValue, setTotalValue] = useState(0);
+  const [rarityCounts, setRarityCounts] = useState<Record<string, number>>({});
+  const [totalCardsPerRarity, setTotalCardsPerRarity] = useState<Record<string, number>>({});
 
+  // Initialize totals from allCards
+  useEffect(() => {
+    if (allCards && allCards.length > 0) {
+      const totals: Record<string, number> = {};
+      RARITY_CATEGORIES.forEach(rarity => {
+        totals[rarity] = 0;
+      });
+      
+      allCards.forEach((template: any) => {
+        const rarity = template.rarity;
+        if (rarity && totals[rarity] !== undefined) {
+          totals[rarity]++;
+        }
+      });
+      setTotalCardsPerRarity(totals);
+    }
+  }, [allCards]);
+
+  // Set zeros when not logged in
+  useEffect(() => {
+    if (!isSignedIn) {
+      const zeros: Record<string, number> = {};
+      RARITY_CATEGORIES.forEach(rarity => {
+        zeros[rarity] = 0;
+      });
+      setRarityCounts(zeros);
+    }
+  }, [isSignedIn]);
+
+  // Load all cards on mount
+  useEffect(() => {
+    fetchAllCards();
+  }, []);
+
+  // User-specific data
   useEffect(() => {
     if (isSignedIn && user) {
       refreshCollection();
-      fetchAllCards();
-    }
-  }, [isSignedIn, user]);
-
-  useEffect(() => {
-    if (isSignedIn && user) {
       loadFavorites();
+    } else {
+      setUserCards([]);
+      setFavorites(new Set());
+      setTotalValue(0);
+      if (viewMode === 'your') {
+        setViewMode('entire');
+      }
     }
   }, [isSignedIn, user]);
 
+  // Calculate total value
   useEffect(() => {
-    if (userCards && userCards.length > 0) {
+    if (userCards && userCards.length > 0 && isSignedIn) {
       const sum = userCards.reduce((acc, card: any) => {
         const cardPrice = calculateCardPrice(
           card.cardTemplate?.base_price ?? 0,
@@ -126,7 +167,7 @@ export default function Collection() {
     } else {
       setTotalValue(0);
     }
-  }, [userCards]);
+  }, [userCards, isSignedIn]);
 
   const loadFavorites = async () => {
     if (!isSignedIn) return;
@@ -139,21 +180,28 @@ export default function Collection() {
   };
 
   const fetchAllCards = async () => {
-    const data = await apiClient.getCards();
-    setAllCards(data.items);
+    try {
+      const data = await apiClient.getCards();
+      setAllCards(data.items || []);
+      groupAllCards(data.items || []);
+    } catch (error) {
+      console.error('Failed to fetch cards:', error);
+    }
   };
 
-  const RARITY_CATEGORIES = ['COMMON', 'UNCOMMON', 'SPARSE', 'RARE', 'UBER_RARE', 'MYTHICAL', 'LEGENDARY', 'SPECIAL'];
-  const [rarityCounts, setRarityCounts] = useState<Record<string, number>>({});
-  const [totalCardsPerRarity, setTotalCardsPerRarity] = useState<Record<string, number>>({});
-
   const calculateRarityProgress = (cards: any[]) => {
-    const counts: Record<string, number> = {};
-    const totals: Record<string, number> = {};
+    if (!cards || cards.length === 0) {
+      const zeros: Record<string, number> = {};
+      RARITY_CATEGORIES.forEach(rarity => {
+        zeros[rarity] = 0;
+      });
+      setRarityCounts(zeros);
+      return;
+    }
     
+    const counts: Record<string, number> = {};
     RARITY_CATEGORIES.forEach(rarity => {
       counts[rarity] = 0;
-      totals[rarity] = 0;
     });
 
     const uniqueTemplates = new Set();
@@ -167,30 +215,28 @@ export default function Collection() {
         }
       }
     });
-
-    const fetchTotalCards = async () => {
-      const data = await apiClient.getCards();
-      data.items.forEach((template: any) => {
-        const rarity = template.rarity;
-        if (rarity && totals[rarity] !== undefined) {
-          totals[rarity]++;
-        }
-      });
-      setTotalCardsPerRarity(totals);
-    };
     
-    fetchTotalCards();
     setRarityCounts(counts);
   };
 
   const refreshCollection = async () => {
-    const data = await apiClient.getCollection();
-    setUserCards(data.items);
-    calculateRarityProgress(data.items);
-    groupByRootCard(data.items);
+    if (!isSignedIn) return;
+    try {
+      const data = await apiClient.getCollection();
+      setUserCards(data.items || []);
+      calculateRarityProgress(data.items || []);
+      groupByRootCard(data.items || []);
+    } catch (error) {
+      console.error('Failed to refresh collection:', error);
+    }
   };
 
   const groupByRootCard = (cards: any[]) => {
+    if (!cards || cards.length === 0) {
+      setRootCards([]);
+      return;
+    }
+    
     const rootMap = new Map();
     
     cards.forEach((card: any) => {
@@ -221,12 +267,12 @@ export default function Collection() {
       let variant = root.variants.find((v: any) => v.key === variantKey);
       
       if (!variant) {
-        const cardPrice = calculateCardPrice(card.cardTemplate?.base_price, card.quality, card.enhancement);
+        const cardPrice = calculateCardPrice(card.cardTemplate?.base_price ?? 0, card.quality, card.enhancement);
         const sellPrice = cardPrice * 0.8;
         const stats = calculateCardStats(
-          card.cardTemplate?.base_hp,
-          card.cardTemplate?.base_atk,
-          card.cardTemplate?.base_def,
+          card.cardTemplate?.base_hp ?? 0,
+          card.cardTemplate?.base_atk ?? 0,
+          card.cardTemplate?.base_def ?? 0,
           card.enhancement
         );
         
@@ -255,10 +301,15 @@ export default function Collection() {
     setRootCards(Array.from(rootMap.values()));
   };
 
-  const groupAllCards = () => {
+  const groupAllCards = (cards: any[]) => {
+    if (!cards || cards.length === 0) {
+      setRootCards([]);
+      return;
+    }
+    
     const rootMap = new Map();
     
-    allCards.forEach((card: any) => {
+    cards.forEach((card: any) => {
       if (!rootMap.has(card.id)) {
         rootMap.set(card.id, {
           templateId: card.id,
@@ -282,31 +333,24 @@ export default function Collection() {
   };
 
   const getCurrentCards = () => {
-    if (viewMode === 'your') {
+    if (viewMode === 'your' && isSignedIn) {
       return rootCards;
     } else {
-      // Group all cards for entire collection view
-      const rootMap = new Map();
-      allCards.forEach((card: any) => {
-        if (!rootMap.has(card.id)) {
-          rootMap.set(card.id, {
-            templateId: card.id,
-            name: card.name,
-            image_url: card.image_url,
-            rarity: card.rarity,
-            description: card.description,
-            series: card.series,
-            type: card.type,
-            base_hp: card.base_hp,
-            base_atk: card.base_atk,
-            base_def: card.base_def,
-            base_price: card.base_price,
-            totalQuantity: 0,
-            variants: []
-          });
-        }
-      });
-      return Array.from(rootMap.values());
+      return allCards.map((card: any) => ({
+        templateId: card.id,
+        name: card.name,
+        image_url: card.image_url,
+        rarity: card.rarity,
+        description: card.description,
+        series: card.series,
+        type: card.type,
+        base_hp: card.base_hp,
+        base_atk: card.base_atk,
+        base_def: card.base_def,
+        base_price: card.base_price,
+        totalQuantity: 0,
+        variants: []
+      }));
     }
   };
 
@@ -366,6 +410,56 @@ export default function Collection() {
     }
   };
 
+  const sellAllButBest = async (rootCard: any) => {
+    // Flatten all cards from all variants
+    const allCardsArray = selectedVariants.flatMap((variant: any) => variant.cards);
+    
+    if (allCardsArray.length <= 1) {
+      alert('You only have 1 card of this type. Nothing to sell.');
+      return;
+    }
+    
+    // Define quality and enhancement order (best to worst)
+    const qualityOrder = ['CRISP', 'GOOD', 'REGULAR', 'POOR', 'TARNISHED'];
+    const enhancementOrder = ['SIGNED', 'SHINY', 'FOILED', 'BASIC'];
+    
+    // Find the best card (highest quality, then highest enhancement)
+    const bestCard = allCardsArray.reduce((best, current) => {
+      const currentQualityIndex = qualityOrder.indexOf(current.quality);
+      const bestQualityIndex = qualityOrder.indexOf(best.quality);
+      
+      if (currentQualityIndex < bestQualityIndex) return current;
+      if (currentQualityIndex > bestQualityIndex) return best;
+      
+      // Same quality, check enhancement
+      const currentEnhancementIndex = enhancementOrder.indexOf(current.enhancement);
+      const bestEnhancementIndex = enhancementOrder.indexOf(best.enhancement);
+      
+      return currentEnhancementIndex < bestEnhancementIndex ? current : best;
+    });
+    
+    const cardsToSell = allCardsArray.filter(card => card.id !== bestCard.id);
+    const totalSellPrice = cardsToSell.reduce((sum, card) => {
+      const variant = selectedVariants.find(v => v.cards.includes(card));
+      return sum + (variant?.sellPrice || 0);
+    }, 0);
+    
+    if (!confirm(`Keep the best card (${bestCard.quality} • ${bestCard.enhancement}) and sell the other ${cardsToSell.length} cards for $${totalSellPrice.toFixed(2)}?`)) return;
+    
+    try {
+      for (const card of cardsToSell) {
+        await apiClient.sellCard(card.id);
+      }
+      await refreshCollection();
+      window.dispatchEvent(new Event('currency-updated'));
+      setSelectedRootCard(null);
+      setSelectedVariants([]);
+    } catch (error) {
+      console.error('Failed to sell cards:', error);
+      alert('Failed to sell cards');
+    }
+  };
+
   const openRootCardDetails = (rootCard: any) => {
     setSelectedRootCard(rootCard);
     setSelectedVariants(rootCard.variants);
@@ -373,9 +467,11 @@ export default function Collection() {
   };
 
   const getSortedRootCards = (cards: any[]) => {
+    if (!cards || cards.length === 0) return [];
+    
     let filtered = [...cards];
 
-    if (showOnlyFavorites) {
+    if (showOnlyFavorites && isSignedIn) {
       filtered = filtered.filter(card => favorites.has(card.templateId));
     }
     
@@ -390,43 +486,57 @@ export default function Collection() {
       case 'name':
         filtered.sort((a, b) => {
           return sortDirection === 'asc' 
-            ? a.name.localeCompare(b.name)
-            : b.name.localeCompare(a.name);
+            ? (a.name || '').localeCompare(b.name || '')
+            : (b.name || '').localeCompare(a.name || '');
         });
         break;
       case 'base_price':
         filtered.sort((a, b) => {
-          return sortDirection === 'asc' 
-            ? a.base_price - b.base_price
-            : b.base_price - a.base_price;
+          let priceA, priceB;
+          
+          if (viewMode === 'your' && isSignedIn) {
+            // Find the highest price among actually owned variants
+            priceA = a.variants?.length > 0 
+              ? Math.max(...a.variants.map((v: any) => v.cardPrice))
+              : 0;
+            priceB = b.variants?.length > 0 
+              ? Math.max(...b.variants.map((v: any) => v.cardPrice))
+              : 0;
+          } else {
+            // For 'Entire' view, use base price since you don't own any
+            priceA = a.base_price || 0;
+            priceB = b.base_price || 0;
+          }
+          
+          return sortDirection === 'asc' ? priceA - priceB : priceB - priceA;
         });
         break;
       case 'quantity':
         filtered.sort((a, b) => {
           return sortDirection === 'asc' 
-            ? a.totalQuantity - b.totalQuantity
-            : b.totalQuantity - a.totalQuantity;
+            ? (a.totalQuantity || 0) - (b.totalQuantity || 0)
+            : (b.totalQuantity || 0) - (a.totalQuantity || 0);
         });
         break;
       case 'base_hp':
         filtered.sort((a, b) => {
           return sortDirection === 'asc' 
-            ? a.base_hp - b.base_hp
-            : b.base_hp - a.base_hp;
+            ? (a.base_hp || 0) - (b.base_hp || 0)
+            : (b.base_hp || 0) - (a.base_hp || 0);
         });
         break;
       case 'base_def':
         filtered.sort((a, b) => {
           return sortDirection === 'asc' 
-            ? a.base_def - b.base_def
-            : b.base_def - a.base_def;
+            ? (a.base_def || 0) - (b.base_def || 0)
+            : (b.base_def || 0) - (a.base_def || 0);
         });
         break;
       case 'base_atk':
         filtered.sort((a, b) => {
           return sortDirection === 'asc' 
-            ? a.base_atk - b.base_atk
-            : b.base_atk - a.base_atk;
+            ? (a.base_atk || 0) - (b.base_atk || 0)
+            : (b.base_atk || 0) - (a.base_atk || 0);
         });
         break;
     }
@@ -435,11 +545,17 @@ export default function Collection() {
   };
 
   const isCardOwned = (cardId: number) => {
+    if (!isSignedIn) return false;
     return userCards.some((c: any) => c.card_template_id === cardId);
   };
 
   const toggleFavorite = async (cardId: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!isSignedIn) {
+      alert('Please sign in to favorite cards');
+      return;
+    }
+    
     const newFavorited = !favorites.has(cardId);
     
     setFavorites(prev => {
@@ -452,7 +568,6 @@ export default function Collection() {
       return newFavorites;
     });
     
-    // Save to database
     try {
       await apiClient.toggleFavorite(cardId, newFavorited);
     } catch (error) {
@@ -473,6 +588,7 @@ export default function Collection() {
     <>
       <Navbar />
       <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
+        {/* Rarity progress bars - always show */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
           {RARITY_CATEGORIES.map((rarity) => {
             const style = getRarityStyle(rarity);
@@ -507,30 +623,39 @@ export default function Collection() {
             );
           })}
         </div>
+        
         <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold">
-              <button
-                onClick={() => {
-                  setViewMode('your');
-                  refreshCollection();
-                }}
-                className={`px-2 py-1 rounded transition-colors ${viewMode === 'your' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
-              >
-                Your
-              </button>
-              <span className="text-gray-500">/</span>
-              <button
-                onClick={() => {
-                  setViewMode('entire');
-                  groupAllCards();
-                }}
-                className={`px-2 py-1 rounded transition-colors ${viewMode === 'entire' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
-              >
-                Entire
-              </button>
-              <span className="lg:ml-2">card collection ({viewMode === 'your' ? userCards.length : allCards.length} total cards{viewMode === 'your' ? `, $${totalValue.toFixed(2)} total value` : ''})</span>
-            </h2>
-          </div>
+          <h2 className="text-2xl font-bold">
+            <button
+              onClick={() => {
+                if (!isSignedIn) {
+                  alert('Please sign in to view your collection');
+                  return;
+                }
+                setViewMode('your');
+                refreshCollection();
+              }}
+              className={`px-2 py-1 rounded transition-colors ${viewMode === 'your' && isSignedIn ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Your
+            </button>
+            <span className="text-gray-500">/</span>
+            <button
+              onClick={() => {
+                setViewMode('entire');
+                groupAllCards(allCards);
+              }}
+              className={`px-2 py-1 rounded transition-colors ${viewMode === 'entire' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Entire
+            </button>
+            <span className="lg:ml-2">
+              card collection ({viewMode === 'your' && isSignedIn ? userCards.length : allCards.length} total cards
+              {viewMode === 'your' && isSignedIn ? `, $${totalValue.toFixed(2)} total value` : ''})
+            </span>
+          </h2>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-1">
             <button
@@ -576,12 +701,14 @@ export default function Collection() {
               By ATK
             </button>
           </div>
-          <button
-            onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-            className={`px-2 py-1.5 text-xs rounded transition-colors ${showOnlyFavorites ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-          >
-            ❤️
-          </button>
+          {isSignedIn && (
+            <button
+              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+              className={`px-2 py-1.5 text-xs rounded transition-colors ${showOnlyFavorites ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              ❤️
+            </button>
+          )}
           <button
             onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
             className="px-3 py-1 text-xs rounded transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
@@ -591,73 +718,74 @@ export default function Collection() {
           </button>
         </div>
         
+        {/* Card grid */}
         {getCurrentCards().length > 0 && (
-        <div className="flex flex-wrap gap-3 mt-10 justify-around sm:justify-start mb-100">
-          {getSortedRootCards(getCurrentCards()).map((rootCard: any) => {
-            const style = getRarityStyle(rootCard.rarity);
-            const owned = viewMode === 'your' ? true : isCardOwned(rootCard.templateId);
-            
-            return (
-              <div 
-                key={rootCard.templateId}
-                onClick={() => viewMode === 'your' ? openRootCardDetails(rootCard) : null}
-                onMouseEnter={() => setHoveredCard(rootCard.templateId)}
-                onMouseLeave={() => setHoveredCard(null)}
-                className={`relative border-2 p-2 w-37.5 cursor-pointer transition-colors rounded-lg ${style.borderColor} ${style.aura || ''} ${
-                  !owned && viewMode === 'entire' ? 'opacity-40 grayscale hover:opacity-60' : 'bg-gray-900 hover:bg-gray-800'
-                }`}
-              >
-                {viewMode === 'your' && rootCard.totalQuantity > 1 && (
-                  <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold z-10">
-                    x{rootCard.totalQuantity}
+          <div className="flex flex-wrap gap-3 mt-10 justify-around sm:justify-start mb-100">
+            {getSortedRootCards(getCurrentCards()).map((rootCard: any) => {
+              const style = getRarityStyle(rootCard.rarity);
+              const owned = viewMode === 'your' && isSignedIn ? true : isCardOwned(rootCard.templateId);
+              
+              return (
+                <div 
+                  key={rootCard.templateId}
+                  onClick={() => viewMode === 'your' && isSignedIn ? openRootCardDetails(rootCard) : null}
+                  onMouseEnter={() => setHoveredCard(rootCard.templateId)}
+                  onMouseLeave={() => setHoveredCard(null)}
+                  className={`relative border-2 p-2 w-37.5 cursor-pointer transition-colors rounded-lg ${style.borderColor} ${style.aura || ''} ${
+                    !owned && viewMode === 'entire' ? 'opacity-40 grayscale hover:opacity-60' : 'bg-gray-900 hover:bg-gray-800'
+                  }`}
+                >
+                  {viewMode === 'your' && isSignedIn && rootCard.totalQuantity > 1 && (
+                    <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold z-10">
+                      x{rootCard.totalQuantity}
+                    </div>
+                  )}
+                  {rootCard.image_url && (
+                    <img 
+                      src={rootCard.image_url} 
+                      alt={rootCard.name}
+                      className="w-full h-25 object-contain mb-2"
+                    />
+                  )}
+                  {viewMode === 'your' && isSignedIn && (
+                    <button
+                      onClick={(e) => toggleFavorite(rootCard.templateId, e)}
+                      className={`absolute top-1 left-1 z-10 text-sm bg-gray-800 p-1 rounded-xl border-2 ${style.borderColor}`}
+                    >
+                      {favorites.has(rootCard.templateId) ? '❤️' : '🩶'}
+                    </button>
+                  )}
+                  <div className={`font-semibold text-sm truncate text-center ${style.textColor}`}>
+                    {rootCard.name}
                   </div>
-                )}
-                {rootCard.image_url && (
-                  <img 
-                    src={rootCard.image_url} 
-                    alt={rootCard.name}
-                    className="w-full h-25 object-contain mb-2"
-                  />
-                )}
-                {viewMode === 'your' && (
-                  <button
-                    onClick={(e) => toggleFavorite(rootCard.templateId, e)}
-                    className={`absolute top-1 left-1 z-10 text-sm bg-gray-800 p-1 rounded-xl border-2 ${style.borderColor}`}
-                  >
-                    {favorites.has(rootCard.templateId) ? '❤️' : '🩶'}
-                  </button>
-                )}
-                <div className={`font-semibold text-sm truncate text-center ${style.textColor}`}>
-                  {rootCard.name}
+                  <div className={`text-xs text-center mt-1 ${style.textColor} opacity-75`}>
+                    {rootCard.rarity}
+                  </div>
+                  
+                  {viewMode === 'entire' && rootCard.base_price && (
+                    <div className="text-xs text-center mt-1 text-green-500">
+                      ${rootCard.base_price.toFixed(2)}
+                    </div>
+                  )}
+                  
+                  {hoveredCard === rootCard.templateId && (
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5">
+                      <p className={`font-semibold mb-1 ${style.textColor}`}>{rootCard.name}</p>
+                      <p className="text-gray-300 text-[10px]">{rootCard.description || 'No description'}</p>
+                      <p className={`text-[10px] mt-1 pt-1 ${style.textColor} opacity-75`}>{rootCard.series || 'Missing Series'} | {rootCard.type || 'Missing Type'}</p>
+                      {viewMode === 'entire' && rootCard.base_price && (
+                        <p className={`text-[10px] mt-1 pt-1 ${style.textColor}`}>Price: ${rootCard.base_price.toFixed(2)}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className={`text-xs text-center mt-1 ${style.textColor} opacity-75`}>
-                  {rootCard.rarity}
-                </div>
-                
-                {viewMode === 'entire' && rootCard.base_price && (
-                  <div className="text-xs text-center mt-1 text-green-500">
-                    ${rootCard.base_price.toFixed(2)}
-                  </div>
-                )}
-                
-                {hoveredCard === rootCard.templateId && (
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5">
-                    <p className={`font-semibold mb-1 ${style.textColor}`}>{rootCard.name}</p>
-                    <p className="text-gray-300 text-[10px]">{rootCard.description || 'No description'}</p>
-                    <p className={`text-[10px] mt-1 pt-1 ${style.textColor} opacity-75`}>{rootCard.series || 'Missing Series'} | {rootCard.type || 'Missing Type'}</p>
-                    {viewMode === 'entire' && rootCard.base_price && (
-                      <p className={`text-[10px] mt-1 pt-1 ${style.textColor}`}>Price: ${rootCard.base_price.toFixed(2)}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
 
-        {/* Modal showing all variants of the selected card */}
-        {viewMode === 'your' && selectedRootCard && selectedVariants.length > 0 && (
+        {/* Modal - only if logged in */}
+        {isSignedIn && viewMode === 'your' && selectedRootCard && selectedVariants.length > 0 && (
           <div 
             onClick={() => { setSelectedRootCard(null); setSelectedVariants([]); }}
             className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
@@ -747,13 +875,23 @@ export default function Collection() {
                   </div>
                 </div>
               ))}
-              
-              <button
-                onClick={() => { setSelectedRootCard(null); setSelectedVariants([]); }}
-                className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2 rounded mt-2 transition-colors"
-              >
-                Close
-              </button>
+
+              <div className="flex gap-2 mt-4">
+                {selectedVariants.flatMap(v => v.cards).length > 1 && (
+                  <button
+                    onClick={() => sellAllButBest(selectedRootCard)}
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded transition-colors"
+                  >
+                    Sell All But Best
+                  </button>
+                )}
+                <button
+                  onClick={() => { setSelectedRootCard(null); setSelectedVariants([]); }}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -103,13 +103,19 @@ export default function Gacha() {
   useEffect(() => {
     fetchFreePack();
     
+    const savedVolume = getSavedVolume();
+    
     DrumRoll.current = new Audio('/sounds/DrumRoll.wav');
     PackOpened.current = new Audio('/sounds/PackOpened.wav');
     CardFlipped.current = new Audio('/sounds/CardFlipped.mp3');
+
+    DrumRoll.current.volume = savedVolume;
+    PackOpened.current.volume = savedVolume;
+    CardFlipped.current.volume = savedVolume;
     
     DrumRoll.current.load();
     PackOpened.current.load();
-    CardFlipped.current.load();
+    CardFlipped.current.load()
     
     return () => {
       if (DrumRoll.current) {
@@ -129,6 +135,29 @@ export default function Gacha() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const handleVolumeChange = (event: CustomEvent) => {
+      const volume = event.detail.volume;
+      if (DrumRoll.current) DrumRoll.current.volume = volume;
+      if (PackOpened.current) PackOpened.current.volume = volume;
+      if (CardFlipped.current) CardFlipped.current.volume = volume;
+    };
+    
+    window.addEventListener('soundVolumeChanged', handleVolumeChange as EventListener);
+
+    const savedVolume = getSavedVolume();
+    if (DrumRoll.current) DrumRoll.current.volume = savedVolume;
+    if (PackOpened.current) PackOpened.current.volume = savedVolume;
+    if (CardFlipped.current) CardFlipped.current.volume = savedVolume;
+    
+    return () => window.removeEventListener('soundVolumeChanged', handleVolumeChange as EventListener);
+  }, []);
+
+  const getSavedVolume = () => {
+    const saved = localStorage.getItem('soundVolume');
+    return saved !== null ? parseFloat(saved) : 0.5;
+  };
 
   const loadExistingCards = async () => {
     try {

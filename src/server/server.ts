@@ -594,13 +594,9 @@ app.get('/api/user/inventory', async (req, res) => {
   res.json({ items: itemsWithDetails });
 });
 
-app.get('/api/cards', async (req, res) => {
+app.get('/api/cards', async (_req, res) => {
   try {
-    const auth = getAuth(req);
-    if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
-    
     const cardTemplates = await prisma.cardTemplates.findMany();
-    
     res.json({ items: cardTemplates });
   } catch (error) {
     console.error('Error fetching card templates:', error);
@@ -631,6 +627,42 @@ app.get('/api/user/collection', async (req, res) => {
   } catch (error) {
     console.error('Error fetching user collection:', error);
     res.status(500).json({ error: 'Failed to fetch collection' });
+  }
+});
+
+app.post('/api/user/reset-collection', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: auth.userId },
+      select: { id: true }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    await prisma.userCards.deleteMany({
+      where: { user_id: user.id }
+    });
+    
+    await prisma.userStats.update({
+      where: { user_id: user.id },
+      data: {
+        unique_cards: 0,
+        total_cards_sold: 0
+      }
+    });
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Reset error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to reset progress';
+    res.status(500).json({ error: errorMessage });
   }
 });
 
