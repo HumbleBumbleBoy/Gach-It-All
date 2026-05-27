@@ -64,6 +64,8 @@ const rarityOrder: Record<string, number> = {
 };
 
 const RARITY_CATEGORIES = ['COMMON', 'UNCOMMON', 'SPARSE', 'RARE', 'UBER_RARE', 'MYTHICAL', 'LEGENDARY', 'SPECIAL'];
+const qualityOrder = ['CRISP', 'GOOD', 'REGULAR', 'POOR', 'TARNISHED'];
+const enhancementOrder = ['SIGNED', 'SHINY', 'FOILED', 'BASIC'];
 
 function getRarityStyle(rarity: string) {
   return rarityConfig[rarity] || rarityConfig.COMMON;
@@ -100,8 +102,10 @@ export default function Collection() {
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [totalValue, setTotalValue] = useState(0);
+  const [variantSortDirection, setVariantSortDirection] = useState<'asc' | 'desc'>('desc');
   const [rarityCounts, setRarityCounts] = useState<Record<string, number>>({});
   const [totalCardsPerRarity, setTotalCardsPerRarity] = useState<Record<string, number>>({});
+  const [priorityEnhancements, setPriorityEnhancements] = useState(false);
 
   // Initialize totals from allCards
   useEffect(() => {
@@ -421,7 +425,6 @@ export default function Collection() {
   };
 
   const sellAllButBest = async (_rootCard: any) => {
-    // Flatten all cards from all variants
     const allCardsArray = selectedVariants.flatMap((variant: any) => variant.cards);
     
     if (allCardsArray.length <= 1) {
@@ -429,21 +432,18 @@ export default function Collection() {
       return;
     }
     
-    // Define quality and enhancement order (best to worst)
-    const qualityOrder = ['CRISP', 'GOOD', 'REGULAR', 'POOR', 'TARNISHED'];
-    const enhancementOrder = ['SIGNED', 'SHINY', 'FOILED', 'BASIC'];
+    const qualityOrderLocal = ['CRISP', 'GOOD', 'REGULAR', 'POOR', 'TARNISHED'];
+    const enhancementOrderLocal = ['SIGNED', 'SHINY', 'FOILED', 'BASIC'];
     
-    // Find the best card (highest quality, then highest enhancement)
     const bestCard = allCardsArray.reduce((best, current) => {
-      const currentQualityIndex = qualityOrder.indexOf(current.quality);
-      const bestQualityIndex = qualityOrder.indexOf(best.quality);
+      const currentQualityIndex = qualityOrderLocal.indexOf(current.quality);
+      const bestQualityIndex = qualityOrderLocal.indexOf(best.quality);
       
       if (currentQualityIndex < bestQualityIndex) return current;
       if (currentQualityIndex > bestQualityIndex) return best;
       
-      // Same quality, check enhancement
-      const currentEnhancementIndex = enhancementOrder.indexOf(current.enhancement);
-      const bestEnhancementIndex = enhancementOrder.indexOf(best.enhancement);
+      const currentEnhancementIndex = enhancementOrderLocal.indexOf(current.enhancement);
+      const bestEnhancementIndex = enhancementOrderLocal.indexOf(best.enhancement);
       
       return currentEnhancementIndex < bestEnhancementIndex ? current : best;
     });
@@ -506,7 +506,6 @@ export default function Collection() {
           let priceA, priceB;
           
           if (viewMode === 'your' && isSignedIn) {
-            // Find the highest price among owned variants
             priceA = a.variants?.length > 0 
               ? Math.max(...a.variants.map((v: any) => v.cardPrice))
               : 0;
@@ -552,6 +551,44 @@ export default function Collection() {
     }
     
     return filtered;
+  };
+
+  const getSortedVariants = () => {
+    const sorted = [...selectedVariants];
+    
+    if (priorityEnhancements) {
+      // Sort by enhancement first, then quality
+      sorted.sort((a, b) => {
+        const enhancementIndexA = enhancementOrder.indexOf(a.enhancement);
+        const enhancementIndexB = enhancementOrder.indexOf(b.enhancement);
+        
+        if (enhancementIndexA !== enhancementIndexB) {
+          return variantSortDirection === 'asc' ? enhancementIndexA - enhancementIndexB : enhancementIndexB - enhancementIndexA;
+        }
+        
+        const qualityIndexA = qualityOrder.indexOf(a.quality);
+        const qualityIndexB = qualityOrder.indexOf(b.quality);
+        
+        return variantSortDirection === 'asc' ? qualityIndexA - qualityIndexB : qualityIndexB - qualityIndexA;
+      });
+    } else {
+      // Sort by quality first, then enhancement (original behavior)
+      sorted.sort((a, b) => {
+        const qualityIndexA = qualityOrder.indexOf(a.quality);
+        const qualityIndexB = qualityOrder.indexOf(b.quality);
+        
+        if (qualityIndexA !== qualityIndexB) {
+          return variantSortDirection === 'asc' ? qualityIndexA - qualityIndexB : qualityIndexB - qualityIndexA;
+        }
+        
+        const enhancementIndexA = enhancementOrder.indexOf(a.enhancement);
+        const enhancementIndexB = enhancementOrder.indexOf(b.enhancement);
+        
+        return variantSortDirection === 'asc' ? enhancementIndexA - enhancementIndexB : enhancementIndexB - enhancementIndexA;
+      });
+    }
+    
+    return sorted;
   };
 
   const isCardOwned = (cardId: number) => {
@@ -806,9 +843,31 @@ export default function Collection() {
               onClick={(e) => e.stopPropagation()}
               className="bg-gray-800 p-5 rounded-lg max-w-lg w-[90%] max-h-[80vh] overflow-y-auto"
             >
-              <h2 className={`text-2xl font-bold mb-4 ${getRarityStyle(selectedRootCard.rarity).textColor}`}>
-                {selectedRootCard.name}
-              </h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className={`text-2xl font-bold ${getRarityStyle(selectedRootCard.rarity).textColor}`}>
+                  {selectedRootCard.name}
+                </h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPriorityEnhancements(!priorityEnhancements)}
+                    className={`px-2 py-1 text-xs rounded transition-colors ${
+                      priorityEnhancements 
+                        ? 'bg-indigo-600 text-white' 
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                    title={priorityEnhancements ? 'Prioritizing Enhancements' : 'Prioritizing Quality'}
+                  >
+                    Enhancements First
+                  </button>
+                  <button
+                    onClick={() => setVariantSortDirection(variantSortDirection === 'asc' ? 'desc' : 'asc')}
+                    className="px-2 py-1 text-xs rounded transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    title={variantSortDirection === 'asc' ? 'Ascending (Worst to Best)' : 'Descending (Best to Worst)'}
+                  >
+                    {variantSortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
 
               {viewMode === 'your' && selectedCardInfo && (
                 <div className="fixed right-0 w-80 bg-gray-800 rounded-l-lg shadow-xl z-40 p-4 border-l border-t border-b border-gray-700 max-sm:hidden">
@@ -832,7 +891,7 @@ export default function Collection() {
                 </div>
               )}
               
-              {selectedVariants.map((variant: any) => (
+              {getSortedVariants().map((variant: any) => (
                 <div 
                   key={variant.key}
                   className="border border-gray-700 rounded-lg p-3 mb-3 bg-gray-900"
