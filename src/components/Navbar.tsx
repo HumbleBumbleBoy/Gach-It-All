@@ -10,8 +10,8 @@ const navigation = [
   { name: 'Gacha', href: '/gacha' },
   { name: 'Collection', href: '/collection' },
   { name: 'Inventory', href: '/inventory'},
-  { name: 'Shop', href: '/shop' },
   { name: 'Battle', href: '/battle' },
+  { name: 'Shop', href: '/shop' },
   { name: 'Market', href: '/market' },
 ];
 
