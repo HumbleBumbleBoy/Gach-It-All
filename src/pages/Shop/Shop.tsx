@@ -12,28 +12,59 @@ interface ShopItem {
   price: number;
   image_url: string;
   rarity?: string;
+  quality?: string;
+  enhancement?: string;
+  finalPrice?: number;
+  qualityMult?: number;
+  enhancementMult?: number;
+}
+
+interface CardQuality {
+  quality: string;
+  enhancement: string;
 }
 
 // Fixed shop slots configuration
 const SHOP_SLOTS = [
-  // Row 1: Special Pack + 2 Boosted Packs
   { id: 1, type: 'ONE_TIME_PACK', title: 'Special Pack', description: 'Limited edition pack', section: 'row1', refreshDaily: true, limitOne: true, highlighted: true, canBuyMultiple: false },
   { id: 2, type: 'MULTI_BUY_PACK', title: 'Boosted Pack', description: 'Enhanced rates', section: 'row1', refreshDaily: true, limitOne: false, canBuyMultiple: true },
   { id: 3, type: 'MULTI_BUY_PACK', title: 'Boosted Pack', description: 'Enhanced rates', section: 'row1', refreshDaily: true, limitOne: false, canBuyMultiple: true },
-  
-  // Row 2: 5 Cards + Mythical Card
   { id: 4, type: 'CARD_SLOT', title: 'Common Card', description: 'Random common card', section: 'row2', rarity: 'COMMON', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
   { id: 5, type: 'CARD_SLOT', title: 'Uncommon Card', description: 'Random uncommon card', section: 'row2', rarity: 'UNCOMMON', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
   { id: 6, type: 'CARD_SLOT', title: 'Sparse Card', description: 'Random sparse card', section: 'row2', rarity: 'SPARSE', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
   { id: 7, type: 'CARD_SLOT', title: 'Rare Card', description: 'Random rare card', section: 'row2', rarity: 'RARE', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
   { id: 8, type: 'CARD_SLOT', title: 'Uber Rare Card', description: 'Random uber rare card', section: 'row2', rarity: 'UBER_RARE', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
   { id: 9, type: 'MYTHICAL_CARD', title: 'Mythic Card', description: 'Random mythical card', section: 'row2', refreshDaily: true, limitOne: true, highlighted: true, canBuyMultiple: false },
-  
-  // Row 3: 3 Cosmetic Items
   { id: 10, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, limitOne: true, canBuyMultiple: false },
   { id: 11, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, limitOne: true, canBuyMultiple: false },
   { id: 12, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, limitOne: true, canBuyMultiple: false },
 ];
+
+const qualityMultipliers = {
+  TARNISHED: 0.3,
+  POOR: 0.66,
+  REGULAR: 1,
+  GOOD: 1.25,
+  CRISP: 1.5
+};
+
+const enhancementMultipliers = {
+  BASIC: 1,
+  FOILED: 1.25,
+  SHINY: 1.5,
+  SIGNED: 2
+};
+
+const rarityColors: Record<string, string> = {
+  COMMON: 'text-gray-400',
+  UNCOMMON: 'text-green-400',
+  SPARSE: 'text-blue-400',
+  RARE: 'text-purple-400',
+  UBER_RARE: 'text-pink-400',
+  MYTHICAL: 'text-orange-400',
+  LEGENDARY: 'text-yellow-400',
+  SPECIAL: 'text-red-400'
+};
 
 export default function Shop() {
   const { isSignedIn } = useUser();
@@ -44,6 +75,7 @@ export default function Shop() {
   const [existingCardIds, setExistingCardIds] = useState<Set<number>>(new Set());
   const [purchasedSlots, setPurchasedSlots] = useState<Set<number>>(new Set());
   const [slotItems, setSlotItems] = useState<Map<number, ShopItem>>(new Map());
+  const [slotQualities, _setSlotQualities] = useState<Map<number, CardQuality>>(new Map());
   const [timeUntilRefresh, setTimeUntilRefresh] = useState<string>('');
 
   useEffect(() => {
@@ -58,7 +90,6 @@ export default function Shop() {
     }
   }, [isSignedIn]);
 
-  // Save shop items to localStorage whenever they change
   useEffect(() => {
     if (slotItems.size > 0) {
       const toSave: Record<number, ShopItem> = {};
@@ -68,6 +99,16 @@ export default function Shop() {
       localStorage.setItem('shopItems', JSON.stringify(toSave));
     }
   }, [slotItems]);
+
+  useEffect(() => {
+    if (slotQualities.size > 0) {
+      const toSave: Record<number, CardQuality> = {};
+      slotQualities.forEach((value, key) => {
+        toSave[key] = value;
+      });
+      localStorage.setItem('shopQualities', JSON.stringify(toSave));
+    }
+  }, [slotQualities]);
 
   const calculateRefreshTime = () => {
     const now = new Date();
@@ -100,16 +141,13 @@ export default function Shop() {
   };
 
   const loadShop = async () => {
-    // Check if we already have shop items saved today
     const lastRefresh = localStorage.getItem('shopLastRefresh');
     const today = new Date().toDateString();
     
-    // Always check localStorage directly instead of relying on state
     const savedShopItems = localStorage.getItem('shopItems');
     const hasSavedItems = savedShopItems && JSON.parse(savedShopItems) && Object.keys(JSON.parse(savedShopItems)).length > 0;
     
     if (lastRefresh === today && hasSavedItems) {
-      // Restore from localStorage if not already in state
       if (slotItems.size === 0 && savedShopItems) {
         const parsed = JSON.parse(savedShopItems);
         const restoredMap = new Map();
@@ -139,7 +177,6 @@ export default function Shop() {
           availableItems = items.filter((item: ShopItem) => item.item_type === slot.type);
         }
         
-        // Skip mythical card slot if no mythical cards exist
         if (slot.type === 'MYTHICAL_CARD' && availableItems.length === 0) {
           continue;
         }
@@ -148,7 +185,43 @@ export default function Shop() {
           const selectedItem = slot.type === 'CARD_SLOT' 
             ? availableItems[0]
             : availableItems[Math.floor(Math.random() * availableItems.length)];
-          newSlotItems.set(slot.id, selectedItem);
+          
+          // For card slots, generate the full card with random quality and enhancement
+          if (slot.type === 'CARD_SLOT' || slot.type === 'MYTHICAL_CARD') {
+            const qualities = slot.type === 'MYTHICAL_CARD' 
+              ? ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP']
+              : ['TARNISHED', 'POOR', 'REGULAR', 'GOOD'];
+            const enhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+            const enhancementWeights = [85, 10, 4, 1];
+            
+            let enhancementRandom = Math.random() * 100;
+            let enhancementCumulative = 0;
+            let selectedEnhancement = 'BASIC';
+            for (let i = 0; i < enhancements.length; i++) {
+              enhancementCumulative += enhancementWeights[i];
+              if (enhancementRandom <= enhancementCumulative) {
+                selectedEnhancement = enhancements[i];
+                break;
+              }
+            }
+            
+            const quality = qualities[Math.floor(Math.random() * qualities.length)];
+            const enhancement = selectedEnhancement;
+            const qualityMult = qualityMultipliers[quality as keyof typeof qualityMultipliers];
+            const enhancementMult = enhancementMultipliers[enhancement as keyof typeof enhancementMultipliers];
+            const finalPrice = selectedItem.price * qualityMult * enhancementMult;
+            
+            newSlotItems.set(slot.id, {
+              ...selectedItem,
+              quality: quality,
+              enhancement: enhancement,
+              finalPrice: finalPrice,
+              qualityMult: qualityMult,
+              enhancementMult: enhancementMult
+            });
+          } else {
+            newSlotItems.set(slot.id, selectedItem);
+          }
         }
       }
       
@@ -161,20 +234,9 @@ export default function Shop() {
     }
   };
 
-  const purchaseItem = async (slot: typeof SHOP_SLOTS[0]) => {
+  const purchaseItem = async (slot: typeof SHOP_SLOTS[0], item: ShopItem) => {
     if (!isSignedIn) {
       alert('Please sign in first!');
-      return;
-    }
-    
-    const item = slotItems.get(slot.id);
-    if (!item) {
-      alert('Item not available');
-      return;
-    }
-    
-    if (!item.id) {
-      alert('Invalid item ID');
       return;
     }
     
@@ -186,13 +248,20 @@ export default function Shop() {
     setPurchasing(slot.id);
     
     try {
-      const result = await apiClient.purchaseShopItem(item.id);
+      const result = await apiClient.purchaseShopItem({
+        itemId: item.id,
+        quality: item.quality,
+        enhancement: item.enhancement,
+        price: item.finalPrice || item.price
+      });
       
       if (result.success) {
         if (result.reward?.type === 'pack') {
           alert(`Pack purchased! It has been added to your inventory.`);
         } else if (result.reward?.type === 'card') {
-          alert(`You received: ${result.reward.card.cardTemplate.name}`);
+          const qualityText = item.quality ? item.quality.toLowerCase() : 'unknown';
+          const enhancementText = item.enhancement ? item.enhancement.toLowerCase() : 'unknown';
+          alert(`You received: ${result.reward.card.cardTemplate.name} (${qualityText}, ${enhancementText})`);
         } else if (result.reward?.type === 'item') {
           alert(`You received: ${result.reward.item.name}`);
         }
@@ -204,7 +273,6 @@ export default function Shop() {
           localStorage.setItem('purchasedSlots', JSON.stringify(Array.from(newPurchased)));
         }
         
-        // Refresh the specific slot with a new random card of the same rarity
         if (slot.type === 'CARD_SLOT' && !slot.limitOne) {
           await refreshCardSlot(slot);
         }
@@ -227,18 +295,50 @@ export default function Shop() {
       const data = await apiClient.getShopItems();
       const items = data.items || [];
       
-      // Get a new random card of the same rarity
       const availableItems = items.filter((item: ShopItem) => 
         item.item_type === slot.type && item.rarity === slot.rarity
       );
       
       if (availableItems.length > 0) {
         const newCard = availableItems[Math.floor(Math.random() * availableItems.length)];
+        
+        // Generate new random quality and enhancement for the refreshed card
+        const qualities = slot.type === 'MYTHICAL_CARD' 
+          ? ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP']
+          : ['TARNISHED', 'POOR', 'REGULAR', 'GOOD'];
+        const enhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+        const enhancementWeights = [85, 10, 4, 1];
+        
+        let enhancementRandom = Math.random() * 100;
+        let enhancementCumulative = 0;
+        let selectedEnhancement = 'BASIC';
+        for (let i = 0; i < enhancements.length; i++) {
+          enhancementCumulative += enhancementWeights[i];
+          if (enhancementRandom <= enhancementCumulative) {
+            selectedEnhancement = enhancements[i];
+            break;
+          }
+        }
+        
+        const quality = qualities[Math.floor(Math.random() * qualities.length)];
+        const enhancement = selectedEnhancement;
+        const qualityMult = qualityMultipliers[quality as keyof typeof qualityMultipliers];
+        const enhancementMult = enhancementMultipliers[enhancement as keyof typeof enhancementMultipliers];
+        const finalPrice = newCard.price * qualityMult * enhancementMult;
+        
+        const fullCardItem = {
+          ...newCard,
+          quality: quality,
+          enhancement: enhancement,
+          finalPrice: finalPrice,
+          qualityMult: qualityMult,
+          enhancementMult: enhancementMult
+        };
+        
         setSlotItems(prev => {
           const newMap = new Map(prev);
-          newMap.set(slot.id, newCard);
+          newMap.set(slot.id, fullCardItem);
           
-          // Update localStorage immediately
           const toSave: Record<number, ShopItem> = {};
           newMap.forEach((value, key) => {
             toSave[key] = value;
@@ -253,33 +353,9 @@ export default function Shop() {
     }
   };
 
-  const getSlotContent = (slot: typeof SHOP_SLOTS[0]) => {
-    const item = slotItems.get(slot.id);
-    const isPurchased = slot.limitOne && purchasedSlots.has(slot.id);
-    
-    if (!item) {
-      return {
-        title: slot.title,
-        description: 'Loading...',
-        price: 0,
-        image: null,
-        canPurchase: false
-      };
-    }
-    
-    return {
-      title: item.name || slot.title,
-      description: item.description || slot.description,
-      price: item.price,
-      image: item.image_url,
-      canPurchase: !isPurchased
-    };
-  };
-
   const row1Slots = SHOP_SLOTS.filter(s => s.section === 'row1');
   const row2Slots = SHOP_SLOTS.filter(s => {
     if (s.section !== 'row2') return false;
-    // If it's a mythical card slot, only show if we have an item for it
     if (s.type === 'MYTHICAL_CARD') {
       return slotItems.has(s.id);
     }
@@ -288,21 +364,24 @@ export default function Shop() {
   const row3Slots = SHOP_SLOTS.filter(s => s.section === 'row3');
 
   const renderSlot = (slot: typeof SHOP_SLOTS[0], isHighlighted = false) => {
-    const content = getSlotContent(slot);
+    const item = slotItems.get(slot.id) as ShopItem | undefined;
     const isPurchased = slot.limitOne && purchasedSlots.has(slot.id);
+    const titleColor = slot.rarity ? rarityColors[slot.rarity] || 'text-white' : 'text-white';
     
-    // Generate random quality for card slots
-    const qualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
-    const randomQuality = qualities[Math.floor(Math.random() * qualities.length)];
-    const qualityMultipliers = {
-      TARNISHED: 0.3,
-      POOR: 0.66,
-      REGULAR: 1,
-      GOOD: 1.25,
-      CRISP: 1.5
-    };
-    const qualityBonus = qualityMultipliers[randomQuality as keyof typeof qualityMultipliers];
-    const qualityText = randomQuality.charAt(0) + randomQuality.slice(1).toLowerCase();
+    if (!item) {
+      return (
+        <div key={slot.id} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div className="text-center text-gray-400">Loading...</div>
+        </div>
+      );
+    }
+    
+    const isCard = slot.type === 'CARD_SLOT' || slot.type === 'MYTHICAL_CARD';
+    const displayPrice = isCard && item.finalPrice ? item.finalPrice : item.price;
+    const quality = isCard && item.quality ? item.quality : null;
+    const enhancement = isCard && item.enhancement ? item.enhancement : null;
+    const qualityMult = isCard && item.qualityMult ? item.qualityMult : null;
+    const enhancementMult = isCard && item.enhancementMult ? item.enhancementMult : null;
     
     return (
       <div 
@@ -314,36 +393,37 @@ export default function Shop() {
         }`}
       >
         <div>
-          <h3 className="text-xl font-bold text-white truncate">{content.title}</h3>
+          <h3 className={`text-xl font-bold truncate ${titleColor}`}>{item.name || slot.title}</h3>
         </div>
         
-        {content.image && (
+        {item.image_url && (
           <div className="relative group">
             <img 
-              src={content.image} 
-              alt={content.title}
+              src={item.image_url} 
+              alt={item.name || slot.title}
               className="w-32 h-32 object-contain mx-auto my-4 cursor-pointer"
             />
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2 bg-gray-900 text-white rounded-lg shadow-xl border border-gray-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 min-w-50">
-              <p className="font-semibold text-sm">{content.title}</p>
-              <p className="text-gray-400 text-xs mt-1">{content.description}</p>
+              <p className="font-semibold text-sm">{item.name || slot.title}</p>
+              <p className="text-gray-400 text-xs mt-1 line-clamp-10">{item.description}</p>
               <div className="mt-2 pt-2 border-t border-gray-700">
-                {slot.type === 'CARD_SLOT' || slot.type === 'MYTHICAL_CARD' ? (
+                {isCard && quality && enhancement ? (
                   <>
                     <p className="text-xs">
                       <span className="text-gray-400">Quality:</span>{' '}
-                      <span className="text-blue-400 font-semibold">{qualityText}</span>
-                      <span className="text-gray-500 text-[10px] ml-1">({qualityBonus}x)</span>
+                      <span className="text-blue-400 font-semibold">{quality.toLowerCase()}</span>
+                      <span className="text-gray-500 text-[10px] ml-1">({qualityMult}x)</span>
                     </p>
                     <p className="text-xs mt-1">
-                      <span className="text-gray-400">Value:</span>{' '}
-                      <span className="text-green-400 font-semibold">${(content.price * qualityBonus).toFixed(2)}</span>
+                      <span className="text-gray-400">Enhancement:</span>{' '}
+                      <span className="text-purple-400 font-semibold">{enhancement.toLowerCase()}</span>
+                      <span className="text-gray-500 text-[10px] ml-1">({enhancementMult}x)</span>
                     </p>
                   </>
                 ) : (
                   <p className="text-xs">
                     <span className="text-gray-400">Price:</span>{' '}
-                    <span className="text-green-400 font-semibold">${content.price.toFixed(2)}</span>
+                    <span className="text-green-400 font-semibold">${displayPrice.toFixed(2)}</span>
                   </p>
                 )}
               </div>
@@ -352,15 +432,15 @@ export default function Shop() {
         )}
         
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-700">
-          <span className="text-2xl font-bold text-green-400">
-            ${content.price.toFixed(2)}
+          <span className="text-lg font-bold text-green-400">
+            ${displayPrice.toFixed(2)}
           </span>
           
           <button
-            onClick={() => purchaseItem(slot)}
-            disabled={!content.canPurchase || purchasing === slot.id || isPurchased}
+            onClick={() => purchaseItem(slot, item)}
+            disabled={slot.limitOne ? (purchasedSlots.has(slot.id) || isPurchased || purchasing === slot.id) : (purchasing === slot.id)}
             className={`px-5 py-2 rounded-lg font-semibold transition-colors ${
-              content.canPurchase && !isPurchased
+              (!slot.limitOne || !purchasedSlots.has(slot.id)) && !isPurchased
                 ? isHighlighted
                   ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
                   : 'bg-blue-600 hover:bg-blue-700 text-white'

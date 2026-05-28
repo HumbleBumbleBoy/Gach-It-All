@@ -155,12 +155,12 @@ export const apiClient = {
     return response.json();
   },
 
-  async purchaseShopItem(itemId: number) {
+  async purchaseShopItem(data: { itemId: number; quality?: string; enhancement?: string; price?: number }) {
     const response = await fetch(`/api/shop/purchase`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ itemId })
+      body: JSON.stringify(data)
     });
     return response.json();
   },

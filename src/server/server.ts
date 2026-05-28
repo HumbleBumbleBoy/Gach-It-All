@@ -1340,7 +1340,7 @@ app.post('/api/shop/purchase', async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
   
-  const { itemId } = req.body;
+  const { itemId, quality, enhancement, price } = req.body;
   
   try {
     const user = await prisma.user.findUnique({
@@ -1350,51 +1350,37 @@ app.post('/api/shop/purchase', async (req, res) => {
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    // First check if it's a card slot (itemId might be a card_template_id)
-    let shopItem = await prisma.shopItem.findUnique({
-      where: { id: itemId, is_available: true }
-    });
-    
-    let isCardSlot = false;
-    let cardTemplate = null;
-    
-    // If not found in ShopItem, check if it's a card template
-    if (!shopItem) {
-      cardTemplate = await prisma.cardTemplates.findUnique({
-        where: { id: itemId }
-      });
-      if (cardTemplate) {
-        isCardSlot = true;
-      } else {
-        return res.status(404).json({ error: 'Item not found' });
-      }
-    }
-    
-    const price = shopItem ? shopItem.price : (cardTemplate?.base_price || 1) * 2;
-    
     if (user.currency < price) {
-      return res.status(400).json({ error: `Insufficient currency. Need $${price}, have $${user.currency}` });
+      return res.status(400).json({ error: `Insufficient currency. Need $${price}, have $${user.currency.toFixed(2)}` });
     }
     
     let reward = null;
     
-    // Process based on whether it's a card slot or regular shop item
-    if (isCardSlot && cardTemplate) {
-      // For card slots, give the specific card with random quality
-      const qualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD'];
-      const randomQuality = qualities[Math.floor(Math.random() * qualities.length)] as Quality;
-      
+    // Check if it's a card
+    const cardTemplate = await prisma.cardTemplates.findUnique({
+      where: { id: itemId }
+    });
+    
+    if (cardTemplate && quality && enhancement) {
+      // Create the card with the specified quality and enhancement
       const newCard = await prisma.userCards.create({
         data: {
           user_id: user.id,
           card_template_id: cardTemplate.id,
-          quality: randomQuality,
-          enhancement: 'BASIC'
+          quality: quality as Quality,
+          enhancement: enhancement as Enhancement
         },
         include: { cardTemplate: true }
       });
       reward = { type: 'card', card: newCard };
-    } else if (shopItem) {
+    } else {
+      // Handle pack or item purchase
+      const shopItem = await prisma.shopItem.findUnique({
+        where: { id: itemId, is_available: true }
+      });
+      
+      if (!shopItem) return res.status(404).json({ error: 'Item not found' });
+      
       switch (shopItem.item_type) {
         case 'ONE_TIME_PACK':
         case 'MULTI_BUY_PACK':
@@ -1412,37 +1398,6 @@ app.post('/api/shop/purchase', async (req, res) => {
             }
           });
           reward = { type: 'pack', pack };
-          break;
-          
-        case 'CARD_SLOT':
-        case 'MYTHICAL_CARD':
-          const qualities = shopItem.item_type === 'MYTHICAL_CARD' 
-            ? ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP']
-            : ['TARNISHED', 'POOR', 'REGULAR', 'GOOD'];
-          const randomQuality = qualities[Math.floor(Math.random() * qualities.length)] as Quality;
-          
-          const enhancements = shopItem.item_type === 'MYTHICAL_CARD' 
-            ? ['BASIC', 'FOILED', 'SHINY', 'SIGNED']
-            : ['BASIC'];
-          const randomEnhancement = enhancements[Math.floor(Math.random() * enhancements.length)] as Enhancement;
-          
-          const cards = await prisma.cardTemplates.findMany({
-            where: { rarity: shopItem.rarity || (shopItem.item_type === 'MYTHICAL_CARD' ? 'MYTHICAL' : 'COMMON') }
-          });
-          
-          if (cards.length > 0) {
-            const randomCard = cards[Math.floor(Math.random() * cards.length)];
-            const newCard = await prisma.userCards.create({
-              data: {
-                user_id: user.id,
-                card_template_id: randomCard.id,
-                quality: randomQuality,
-                enhancement: randomEnhancement
-              },
-              include: { cardTemplate: true }
-            });
-            reward = { type: 'card', card: newCard };
-          }
           break;
           
         case 'ITEM_SLOT':
