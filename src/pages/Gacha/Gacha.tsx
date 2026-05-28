@@ -11,13 +11,14 @@ interface Card {
   image_url?: string;
   description?: string;
   quality?: string;
-  enhancement?: string;
+  enhancement: string;
   cardTemplate?: {
     id: number;
     name: string;
     image_url: string;
     rarity: string;
     description?: string;
+    base_price?: number;
     base_hp?: number;
     base_atk?: number;
     base_def?: number;
@@ -31,6 +32,21 @@ interface Pack {
   name: string;
   image_url: string;
 }
+
+const QUALITY_MULTIPLIERS = {
+  TARNISHED: 0.3,
+  POOR: 0.66,
+  REGULAR: 1,
+  GOOD: 1.25,
+  CRISP: 1.5
+};
+
+const ENHANCEMENT_MULTIPLIERS = {
+  BASIC: 1,
+  FOILED: 1.25,
+  SHINY: 1.5,
+  SIGNED: 2
+};
 
 // Rarity configurations
 const rarityConfig: Record<string, { textColor: string; borderColor: string; aura?: string }> = {
@@ -72,12 +88,28 @@ export default function Gacha() {
   const [tooltipCard, setTooltipCard] = useState<{ card: Card; index: number } | null>(null);
   const [allFlipped, setAllFlipped] = useState(false);
   const [existingCardIds, setExistingCardIds] = useState<Set<number>>(new Set());
+  const [tooltipPosition, setTooltipPosition] = useState<'top' | 'bottom'>('top');
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const DrumRoll = useRef<HTMLAudioElement | null>(null);
   const PackOpened = useRef<HTMLAudioElement | null>(null);
   const CardFlipped = useRef<HTMLAudioElement | null>(null);
   const openTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isOpeningRef = useRef(false);
+
+  useEffect(() => {
+    if (hoveredCard !== null && cardRefs.current[hoveredCard]) {
+      const cardRect = cardRefs.current[hoveredCard]?.getBoundingClientRect();
+      if (cardRect) {
+        // If card is in top half of screen, show tooltip below
+        if (cardRect.top < 200) {
+          setTooltipPosition('bottom');
+        } else {
+          setTooltipPosition('top');
+        }
+      }
+    }
+  }, [hoveredCard]);
 
   useEffect(() => {
     const handleMuteChange = (event: CustomEvent) => {
@@ -256,6 +288,13 @@ export default function Gacha() {
     }, 2000);
   };
 
+  function calculateCardPrice(basePrice: number, quality: string, enhancement: string): number {
+    const qualityMultiplier = QUALITY_MULTIPLIERS[quality as keyof typeof QUALITY_MULTIPLIERS] || 1;
+    const enhancementMultiplier = ENHANCEMENT_MULTIPLIERS[enhancement as keyof typeof ENHANCEMENT_MULTIPLIERS] || 1;
+    const price = basePrice * qualityMultiplier * enhancementMultiplier;
+    return Math.round(price * 100) / 100;
+  }
+
   const closeModal = () => {
     setOpenedCards([]);
     setShowCards(false);
@@ -306,27 +345,29 @@ export default function Gacha() {
                     const isFlipped = flippedCards[index];
                     
                     return (
-                      <div
+                      <div  // chunky ass div
                         key={index}
-                        onMouseEnter={() => {
-                          if (!isFlipped) {
-                            flipCard(index);
-                            playSound(CardFlipped);
-                          }
-                          setHoveredCard(index);
-                          setTooltipCard({ card, index });
-                        }}
-                        onMouseLeave={() => {
-                          setHoveredCard(null);
-                          setTooltipCard(null);
-                        }}
-                        className="relative transition-all cursor-pointer animate-in zoom-in duration-300 perspective-1000"
-                        style={{
-                          transform: hoveredCard === index && isFlipped ? 'scale(1.15)' : 'scale(1)',
-                          transition: 'transform 0.1s ease-in-out',
-                          animationDelay: `${index * 50}ms`
-                        }}
-                      >
+                          ref={el => { cardRefs.current[index] = el; }}
+                          onMouseEnter={() => {
+                            if (!isFlipped) {
+                              flipCard(index);
+                              playSound(CardFlipped);
+                            }
+                            setHoveredCard(index);
+                            setTooltipCard({ card, index });
+                          }}
+                          onMouseLeave={() => {
+                            setHoveredCard(null);
+                            setTooltipCard(null);
+                          }}
+                          className="relative transition-all cursor-pointer animate-in zoom-in duration-300 perspective-1000 overflow-visible"
+                          style={{
+                            transform: hoveredCard === index && isFlipped ? 'scale(1.15)' : 'scale(1)',
+                            transition: 'transform 0.1s ease-in-out',
+                            animationDelay: `${index * 50}ms`,
+                            zIndex: hoveredCard === index ? 100 : 1
+                          }}
+                        >
                         <div className="relative w-24 h-40 lg:w-40 lg:h-56 lg:block lg:mb-10">
                           <div 
                             className={`relative w-full h-full transition-all duration-500 preserve-3d ${
@@ -375,22 +416,34 @@ export default function Gacha() {
                                 {rarity}
                               </p>
                               {card.quality && (
-                                <p className="text-[8px] sm:text-xs text-gray-500 text-center mt-1 truncate">
-                                  {card.quality} • {card.enhancement}
-                                </p>
+                                <div className="text-center mt-1">              
+                                  <p className="text-[8px] sm:text-xs text-gray-500 truncate">
+                                    {card.quality} • {card.enhancement}
+                                  </p>                                  
+                                </div>
                               )}
                             </div>
                           </div>
                         </div>
                         {hoveredCard === index && isFlipped && (
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs px-2 py-1 sm:px-3 sm:py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5 sm:min-w-37.5 sm:max-w-37.5 lg:max-w-50 hidden sm:block">
-                            <p className={`font-semibold mb-1 text-xs sm:text-sm truncate ${style.textColor}`}>
-                              {cardName}
+                          <div 
+                            className={`absolute ${
+                              tooltipPosition === 'top' 
+                                ? 'bottom-full mb-2' 
+                                : 'top-full mt-2'
+                            } left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 sm:px-3 sm:py-2 rounded-lg shadow-xl border border-gray-700 min-w-37.5 sm:min-w-37.5 sm:max-w-37.5 lg:max-w-50 hidden sm:block`}
+                            style={{ zIndex: 9999 }}
+                          >
+                            <p className={`font-semibold mb-1 text-xs sm:text-sm truncate flex items-center justify-between ${style.textColor}`}>
+                              <span>{cardName}</span>
+                              <span className="text-[10px] text-green-500 font-semibold">
+                                ${calculateCardPrice(card.cardTemplate?.base_price || 0, card.quality || 'REGULAR', card.enhancement || 'BASIC').toFixed(2)}
+                              </span>
                             </p>
                             <p className="text-gray-300 leading-relaxed text-[9px] lg:text-[10px] line-clamp-6 lg:line-clamp-10">
                               {card.cardTemplate?.description || 'No description'}
                             </p>
-                            <p className={`text-[10px] mt-1 pt-3 truncate ${style.textColor}`}>
+                            <p className={`text-[10px] mt-1 pt-1 truncate ${style.textColor}`}>
                               {card.cardTemplate?.base_hp || 'NULL HP'}HP | {card.cardTemplate?.base_def || 'NULL DEF'}DEF | {card.cardTemplate?.base_atk || 'NULL ATK'}ATK
                             </p>
                             <p className={`text-[10px] mt-1 truncate ${style.textColor}`}>
