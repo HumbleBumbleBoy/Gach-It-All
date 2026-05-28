@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Condition, Comparator, Quality, Reward, Enhancement, UserStatus } from "@prisma/client";
+import { PrismaClient, Condition, Comparator, Quality, Reward, Enhancement, UserStatus, Rarity } from "@prisma/client";
 import type { Pack, CardTemplates } from "@prisma/client";
 
 
@@ -571,23 +571,39 @@ app.get('/api/user/inventory', async (req, res) => {
   
   const itemsWithDetails = await Promise.all(items.map(async (inv) => {
     let details = null;
+    let sellPrice = 0;
+    let canSell = false;
+    
     if (inv.item_type === 'ITEM') {
       details = await prisma.item.findUnique({
         where: { id: inv.reference_id },
-        select: { name: true, image_url: true, description: true }
+        select: { name: true, image_url: true, description: true, price: true, can_sell: true }
       });
+      if (details) {
+        canSell = details.can_sell || false;
+        if (canSell) {
+          sellPrice = details.price * 0.5;
+        }
+      }
     } else if (inv.item_type === 'PACK') {
       details = await prisma.pack.findUnique({
         where: { id: inv.reference_id },
-        select: { name: true, image_url: true, description: true }
+        select: { name: true, image_url: true, description: true, price: true }
       });
+      if (details) {
+        // All packs can be sold
+        canSell = true;
+        sellPrice = details.price * 0.8; // 80% of pack price
+      }
     }
     
     return {
       ...inv,
       name: details?.name || 'Unknown',
       image_url: details?.image_url,
-      description: details?.description || ''
+      description: details?.description || '',
+      sell_price: sellPrice,
+      can_sell: canSell
     };
   }));
   
@@ -991,35 +1007,34 @@ app.post('/api/gacha/pack', async (req, res) => {
   
   if (!pack) return res.status(404).json({ error: 'Pack not found' });
   
-  // Check if user has pack in inventory or can buy
-  if (pack.price > 0) {
-    const inventoryPack = await prisma.userInventory.findFirst({
-      where: {
-        user_id: user.id,
-        item_type: 'PACK',
-        reference_id: packId,
-        quantity: { gt: 0 }
-      }
-    });
-    
-    if (!inventoryPack && user.currency < pack.price) {
+  // Check if user has pack in inventory
+  const inventoryPack = await prisma.userInventory.findFirst({
+    where: {
+      user_id: user.id,
+      item_type: 'PACK',
+      reference_id: packId,
+      quantity: { gt: 0 }
+    }
+  });
+  
+  // If pack is from inventory (not purchased directly)
+  if (inventoryPack) {
+    // Decrement or remove from inventory
+    if (inventoryPack.quantity === 1) {
+      await prisma.userInventory.delete({ where: { id: inventoryPack.id } });
+    } else {
+      await prisma.userInventory.update({
+        where: { id: inventoryPack.id },
+        data: { quantity: { decrement: 1 } }
+      });
+    }
+  } 
+  // Otherwise, check if user can buy with currency
+  else if (pack.price > 0) {
+    if (user.currency < pack.price) {
       return res.status(400).json({ error: 'Insufficient currency' });
     }
-    
-    if (inventoryPack) {
-      // Use from inventory
-      if (inventoryPack.quantity === 1) {
-        await prisma.userInventory.delete({ where: { id: inventoryPack.id } });
-      } else {
-        await prisma.userInventory.update({
-          where: { id: inventoryPack.id },
-          data: { quantity: { decrement: 1 } }
-        });
-      }
-    } else {
-
-      await updateCurrency(user.id, pack.price, 'spend');
-    }
+    await updateCurrency(user.id, pack.price, 'spend');
   }
 
   const cards = await generatePackCards(pack, user.id);
@@ -1027,7 +1042,7 @@ app.post('/api/gacha/pack', async (req, res) => {
   await prisma.userStats.update({
     where: { user_id: user.id },
     data: { 
-      total_pulls: { increment: 1 }  // 1 pack
+      total_pulls: { increment: 1 }
     }
   });
   
@@ -1247,6 +1262,319 @@ async function applyQualityAndEnhancement(card: CardTemplates, pack: Pack, userI
   
   return userCard;
 }
+
+app.get('/api/shop/items', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  try {
+    // Get all available shop items from database
+    const dbItems = await prisma.shopItem.findMany({
+      where: { is_available: true }
+    });
+    
+    // Separate card slots from regular items
+    const regularItems = dbItems.filter(item => 
+      item.item_type !== 'CARD_SLOT' && item.item_type !== 'MYTHICAL_CARD'
+    );
+    
+    // Get random cards for card slots
+    const cardSlots = [];
+    
+    // For each rarity tier, get a random card
+    const rarities = ['COMMON', 'UNCOMMON', 'SPARSE', 'RARE', 'UBER_RARE'];
+    for (const rarity of rarities) {
+      const cards = await prisma.cardTemplates.findMany({
+        where: { rarity: rarity as Rarity }
+      });
+      if (cards.length > 0) {
+        const randomCard = cards[Math.floor(Math.random() * cards.length)];
+        cardSlots.push({
+          id: randomCard.id,
+          name: randomCard.name,
+          description: randomCard.description || `${rarity} card`,
+          item_type: 'CARD_SLOT',
+          reference_id: randomCard.id,
+          price: (randomCard.base_price || 1) * 2,
+          image_url: randomCard.image_url,
+          rarity: rarity,
+          is_available: true
+        });
+      }
+    }
+    
+    // Get random mythical card - ONLY if exists
+    const mythicalCards = await prisma.cardTemplates.findMany({
+      where: { rarity: 'MYTHICAL' as Rarity }
+    });
+    let mythicalSlot = null;
+    if (mythicalCards.length > 0) {
+      const randomMythical = mythicalCards[Math.floor(Math.random() * mythicalCards.length)];
+      mythicalSlot = {
+        id: randomMythical.id,
+        name: randomMythical.name,
+        description: randomMythical.description || 'Mythical card',
+        item_type: 'MYTHICAL_CARD',
+        reference_id: randomMythical.id,
+        price: (randomMythical.base_price || 20) * 2,
+        image_url: randomMythical.image_url,
+        rarity: 'MYTHICAL',
+        is_available: true
+      };
+    }
+    
+    // Combine all items - only add mythicalSlot if it exists
+    const allItems = [...regularItems, ...cardSlots];
+    if (mythicalSlot) {
+      allItems.push(mythicalSlot);
+    }
+    
+    res.json({ items: allItems });
+  } catch (error) {
+    console.error('Failed to fetch shop items:', error);
+    res.status(500).json({ error: 'Failed to fetch shop items' });
+  }
+});
+
+app.post('/api/shop/purchase', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { itemId } = req.body;
+  
+  try {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: auth.userId },
+      select: { id: true, currency: true }
+    });
+    
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // First check if it's a card slot (itemId might be a card_template_id)
+    let shopItem = await prisma.shopItem.findUnique({
+      where: { id: itemId, is_available: true }
+    });
+    
+    let isCardSlot = false;
+    let cardTemplate = null;
+    
+    // If not found in ShopItem, check if it's a card template
+    if (!shopItem) {
+      cardTemplate = await prisma.cardTemplates.findUnique({
+        where: { id: itemId }
+      });
+      if (cardTemplate) {
+        isCardSlot = true;
+      } else {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+    }
+    
+    const price = shopItem ? shopItem.price : (cardTemplate?.base_price || 1) * 2;
+    
+    if (user.currency < price) {
+      return res.status(400).json({ error: `Insufficient currency. Need $${price}, have $${user.currency}` });
+    }
+    
+    let reward = null;
+    
+    // Process based on whether it's a card slot or regular shop item
+    if (isCardSlot && cardTemplate) {
+      // For card slots, give the specific card with random quality
+      const qualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD'];
+      const randomQuality = qualities[Math.floor(Math.random() * qualities.length)] as Quality;
+      
+      const newCard = await prisma.userCards.create({
+        data: {
+          user_id: user.id,
+          card_template_id: cardTemplate.id,
+          quality: randomQuality,
+          enhancement: 'BASIC'
+        },
+        include: { cardTemplate: true }
+      });
+      reward = { type: 'card', card: newCard };
+    } else if (shopItem) {
+      switch (shopItem.item_type) {
+        case 'ONE_TIME_PACK':
+        case 'MULTI_BUY_PACK':
+          const pack = await prisma.pack.findUnique({ 
+            where: { id: shopItem.reference_id } 
+          });
+          if (!pack) return res.status(404).json({ error: 'Pack not found' });
+          
+          await prisma.userInventory.create({
+            data: {
+              user_id: user.id,
+              item_type: 'PACK',
+              reference_id: shopItem.reference_id,
+              quantity: 1
+            }
+          });
+          reward = { type: 'pack', pack };
+          break;
+          
+        case 'CARD_SLOT':
+        case 'MYTHICAL_CARD':
+          const qualities = shopItem.item_type === 'MYTHICAL_CARD' 
+            ? ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP']
+            : ['TARNISHED', 'POOR', 'REGULAR', 'GOOD'];
+          const randomQuality = qualities[Math.floor(Math.random() * qualities.length)] as Quality;
+          
+          const enhancements = shopItem.item_type === 'MYTHICAL_CARD' 
+            ? ['BASIC', 'FOILED', 'SHINY', 'SIGNED']
+            : ['BASIC'];
+          const randomEnhancement = enhancements[Math.floor(Math.random() * enhancements.length)] as Enhancement;
+          
+          const cards = await prisma.cardTemplates.findMany({
+            where: { rarity: shopItem.rarity || (shopItem.item_type === 'MYTHICAL_CARD' ? 'MYTHICAL' : 'COMMON') }
+          });
+          
+          if (cards.length > 0) {
+            const randomCard = cards[Math.floor(Math.random() * cards.length)];
+            const newCard = await prisma.userCards.create({
+              data: {
+                user_id: user.id,
+                card_template_id: randomCard.id,
+                quality: randomQuality,
+                enhancement: randomEnhancement
+              },
+              include: { cardTemplate: true }
+            });
+            reward = { type: 'card', card: newCard };
+          }
+          break;
+          
+        case 'ITEM_SLOT':
+          const item = await prisma.item.findUnique({ 
+            where: { id: shopItem.reference_id } 
+          });
+          if (!item) return res.status(404).json({ error: 'Item not found' });
+          
+          await prisma.userInventory.create({
+            data: {
+              user_id: user.id,
+              item_type: 'ITEM',
+              reference_id: shopItem.reference_id,
+              quantity: 1
+            }
+          });
+          reward = { type: 'item', item };
+          break;
+          
+        default:
+          return res.status(400).json({ error: 'Unknown item type' });
+      }
+    }
+    
+    if (!reward) {
+      return res.status(500).json({ error: 'Failed to generate reward' });
+    }
+    
+    // Deduct currency
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { currency: { decrement: price } }
+      }),
+      prisma.userStats.update({
+        where: { user_id: user.id },
+        data: { 
+          purchases_made: { increment: 1 },
+          total_currency_spent: { increment: price }
+        }
+      })
+    ]);
+    
+    await checkAndUpdateAchievements(user.id, Condition.PURCHASES_MADE);
+    
+    res.json({ success: true, reward, newCurrency: user.currency - price });
+    
+  } catch (error) {
+    console.error('Purchase failed:', error);
+    res.status(500).json({ error: 'Purchase failed: ' + (error as Error).message });
+  }
+});
+
+app.post('/api/inventory/sell', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { inventoryId } = req.body;
+  
+  try {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: auth.userId },
+      select: { id: true }
+    });
+    
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    const inventoryItem = await prisma.userInventory.findFirst({
+      where: {
+        id: inventoryId,
+        user_id: user.id
+      }
+    });
+    
+    if (!inventoryItem) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    
+    let sellPrice = 0;
+    let itemName = '';
+    
+    // Handle different item types
+    if (inventoryItem.item_type === 'PACK') {
+      const pack = await prisma.pack.findUnique({
+        where: { id: inventoryItem.reference_id }
+      });
+      if (!pack) {
+        return res.status(404).json({ error: 'Pack not found' });
+      }
+      // Sell pack for 80% of its price
+      sellPrice = pack.price * 0.8;
+      itemName = pack.name;
+    } 
+    else if (inventoryItem.item_type === 'ITEM') {
+      const item = await prisma.item.findUnique({
+        where: { id: inventoryItem.reference_id }
+      });
+      if (!item) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+      if (!item.can_sell) {
+        return res.status(400).json({ error: 'This item cannot be sold' });
+      }
+      // Sell item for 50% of its price
+      sellPrice = item.price * 0.5;
+      itemName = item.name;
+    }
+    else {
+      return res.status(400).json({ error: 'Unknown item type' });
+    }
+    
+    // Delete or decrement item
+    if (inventoryItem.quantity === 1) {
+      await prisma.userInventory.delete({
+        where: { id: inventoryId }
+      });
+    } else {
+      await prisma.userInventory.update({
+        where: { id: inventoryId },
+        data: { quantity: { decrement: 1 } }
+      });
+    }
+    
+    // Add currency to user
+    await updateCurrency(user.id, sellPrice, 'gain');
+    
+    res.json({ success: true, sellPrice, itemName });
+  } catch (error) {
+    console.error('Failed to sell item:', error);
+    res.status(500).json({ error: 'Failed to sell item' });
+  }
+});
 
 app.get('/api/user/status', async (req, res) => {
   const auth = getAuth(req);

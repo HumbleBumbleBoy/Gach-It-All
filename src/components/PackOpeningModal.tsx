@@ -283,9 +283,9 @@ export default function PackOpeningModal({ isOpen, cards, onClose, existingCardI
                     } left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 sm:px-3 sm:py-2 rounded-lg shadow-xl border border-gray-700 min-w-37.5 sm:min-w-37.5 sm:max-w-37.5 lg:max-w-50 hidden sm:block`}
                     style={{ zIndex: 9999 }}
                   >
-                    <p className={`font-semibold mb-1 text-xs sm:text-sm truncate flex items-center justify-between ${style.textColor}`}>
-                      <span>{cardName}</span>
-                      <span className="text-[10px] text-green-500 font-semibold">
+                    <p className={`font-semibold mb-1 text-xs sm:text-sm flex items-center justify-between ${style.textColor}`}>
+                      <span className="text-[14px]">{cardName}</span>
+                      <span className="text-[10px] text-green-500 font-semibold pl-1">
                         ${calculateCardPrice(card.cardTemplate?.base_price || 0, card.quality || 'REGULAR', card.enhancement || 'BASIC').toFixed(2)}
                       </span>
                     </p>

@@ -13,6 +13,8 @@ interface InventoryItem {
   item_type: string;
   reference_id: number;
   acquired_at: string;
+  can_sell?: boolean;
+  sell_price?: number;
 }
 
 export default function Inventory() {
@@ -22,6 +24,7 @@ export default function Inventory() {
   const [openedCards, setOpenedCards] = useState<any[]>([]);
   const [showPackModal, setShowPackModal] = useState(false);
   const [existingCardIds, setExistingCardIds] = useState<Set<number>>(new Set());
+  const [selling, setSelling] = useState<number | null>(null);
 
   useEffect(() => {
     if (isSignedIn && user) {
@@ -62,7 +65,9 @@ export default function Inventory() {
       if (result.success && result.cards && result.cards.length > 0) {
         setOpenedCards(result.cards);
         setShowPackModal(true);
+        
         await refreshInventory();
+        
         window.dispatchEvent(new CustomEvent('achievements-updated'));
         window.dispatchEvent(new Event('currency-updated'));
       } else {
@@ -76,10 +81,42 @@ export default function Inventory() {
     }
   };
 
+  const sellItem = async (item: InventoryItem) => {
+    if (!isSignedIn) {
+      alert('Please sign in first!');
+      return;
+    }
+    
+    const sellPrice = item.sell_price || 0;
+    if (!confirm(`Sell ${item.quantity > 1 ? `${item.quantity}x ` : ''}${item.name} for $${sellPrice.toFixed(2)}?`)) {
+      return;
+    }
+    
+    setSelling(item.id);
+    
+    try {
+      const result = await apiClient.sellInventoryItem(item.id);
+      
+      if (result.success) {
+        alert(`Sold ${item.name} for $${result.sellPrice.toFixed(2)}!`);
+        await refreshInventory();
+        window.dispatchEvent(new Event('currency-updated'));
+        window.dispatchEvent(new CustomEvent('achievements-updated'));
+      } else {
+        alert(result.error || 'Failed to sell item');
+      }
+    } catch (error) {
+      console.error('Failed to sell item:', error);
+      alert('Failed to sell item');
+    } finally {
+      setSelling(null);
+    }
+  };
+
   const closeModal = () => {
     setShowPackModal(false);
     setOpenedCards([]);
-    loadExistingCards(); // Refresh existing cards after opening
+    loadExistingCards();
   };
 
   return (
@@ -97,9 +134,11 @@ export default function Inventory() {
               <div key={item.id} className="bg-gray-800 rounded-lg p-3">
                 <img src={item.image_url} alt={item.name} className="h-32 w-32 rounded mb-2 mx-auto object-contain" />
                 <p className="text-white text-sm font-semibold truncate">{item.name}</p>
-                <p className="text-gray-400 text-xs ">{item.description}</p>
-                <div className='flex justify-between gap-1 mt-1 text-xs'>
-                  {item.quantity > 1 && <p className="text-gray-500">x{item.quantity}</p>}
+                <p className="text-gray-400 text-xs">{item.description}</p>
+                <div className='flex justify-between items-center gap-1 mt-1 text-xs'>
+                  {item.quantity > 1 && (
+                    <p className="text-gray-500">{item.quantity}x</p>
+                  )}
                 </div>
                 {item.item_type === 'PACK' && (
                   <button
@@ -108,6 +147,15 @@ export default function Inventory() {
                     className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 rounded transition-colors disabled:opacity-50"
                   >
                     {openingPack?.id === item.id ? 'Opening...' : 'Open Pack'}
+                  </button>
+                )}
+                {item.can_sell && (
+                  <button
+                    onClick={() => sellItem(item)}
+                    disabled={selling === item.id}
+                    className="mt-2 w-full bg-red-600 hover:bg-red-700 text-white text-xs py-1 rounded transition-colors disabled:opacity-50"
+                  >
+                    {selling === item.id ? 'Selling...' : 'Sell'}
                   </button>
                 )}
                 {item.name === "Welcome badge" && (

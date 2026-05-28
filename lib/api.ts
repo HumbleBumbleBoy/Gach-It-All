@@ -147,4 +147,31 @@ export const apiClient = {
     });
     return response.json();
   },
+
+  async getShopItems() {
+    const response = await fetch(`/api/shop/items`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
+
+  async purchaseShopItem(itemId: number) {
+    const response = await fetch(`/api/shop/purchase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ itemId })
+    });
+    return response.json();
+  },
+
+  async sellInventoryItem(inventoryId: number) {
+    const response = await fetch(`/api/inventory/sell`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ inventoryId })
+    });
+    return response.json();
+  },
 };

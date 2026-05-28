@@ -21,9 +21,8 @@ model User {
   userCards        UserCards[]
   userAchievements UserAchievement[]
   userInventory    UserInventory[]
-  userStats        UserStats?  // One-to-one relation
+  userStats        UserStats?
   userCardCompletions UserCardCompletion[]
-  shopPurchases ShopPurchase[]
 }
 
 enum UserStatus {
@@ -52,15 +51,15 @@ model UserStats {
   battle_rating       Float    @default(1000)
   updated_at          DateTime @updatedAt
 
-  total_currency_spent      Float @default(0)  // CURRENCY_SPENT
-  total_currency_gained     Float @default(0)  // CURRENCY_GAINED
-  total_cards_enhanced      Int   @default(0)  // ENHANCED_CARDS
-  highest_battle_rating     Float @default(1000) // BATTLE_RATING
-  tournament_wins           Int   @default(0)  // TOURNAMENT_WINS
-  lucky_pulls               Int   @default(0)  // LUCKY_PULL (legendary from common pack)
-  one_shots                 Int   @default(0)  // ONE_SHOT (won battle on first turn)
-  trade_flips               Int   @default(0)  // TRADE_FLIP (traded common for rare)
-  login_count Int @default(0)
+  total_currency_spent      Float @default(0)
+  total_currency_gained     Float @default(0)
+  total_cards_enhanced      Int   @default(0)
+  highest_battle_rating     Float @default(1000)
+  tournament_wins           Int   @default(0)
+  lucky_pulls               Int   @default(0)
+  one_shots                 Int   @default(0)
+  trade_flips               Int   @default(0)
+  login_count               Int   @default(0)
   
   user User @relation(fields: [user_id], references: [id])
 }
@@ -125,11 +124,11 @@ model CardTemplates {
   userCardCompletions UserCardCompletion[]
 }
 
-enum Series { // add stuff as i go
+enum Series {
   CARD_GAMES
 }
 
-enum Type { // add stuff as i go
+enum Type {
   DIGITAL
   VIDEO_GAME
   GAME
@@ -187,8 +186,6 @@ model Pack {
   
   is_special          Boolean @default(false)
   boost_multiplier    Float?  @default(1.0)
-
-  shopSlots ShopSlot[]
 }
 
 model Item {
@@ -201,8 +198,6 @@ model Item {
   is_available Boolean @default(true)
   created_at   DateTime @default(now())
   can_sell     Boolean  @default(true)
-  
-  shopSlots ShopSlot[]
 }
 
 enum ItemType {
@@ -238,42 +233,42 @@ enum Comparator {
 }
 
 enum Condition {
-  CURRENCY               // Compares how much you own
-  CURRENCY_SPENT         // How much you spent
-  CURRENCY_GAINED        // How much you gained
-  LOSSES                 // How many times you lost
-  WINS                   // How many times you won
-  CARDS_COLLECTED        // How many cards in collection
-  PACKS_OPENED           // How many opened packs
-  CARD_STRENGTH          // Checks if has card of x strength
-  CARD_DEFENCE           // Checks if has card of x defence
-  CARD_HEALTH            // Checks if has card of x health
-  CARD_RARITY            // Checks if has card is x rarity
-  CARD_NAME_LENGTH       // Checks if has card is x long
-  CARD_NAME_WORDS        // Checks if has card has x words
-  STATUS                 // Checks user status
-  ACCOUNT_AGE            // Checks account age
-  LOGIN_STREAK           // Consecutive days logged in
-  TOTAL_LOGINS           // Total times logged in
-  TRADES_COMPLETED       // Number of successful trades
-  ENHANCED_CARDS         // How many special cards owned
-  CONSECUTIVE_WINS       // Win streak in battles
-  CARDS_SOLD             // Total cards sold to shop
-  PURCHASES_MADE         // Total shop purchases
-  UNIQUE_CARD_SERIES     // Different series collected
-  CARD_SET_COMPLETION    // Complete a specific card set
-  BATTLE_RATING          // ELO/rank score
-  TOURNAMENT_WINS        // Special event wins
-  ACHIEVEMENT_COUNT      // Total achievements earned
-  INVENTORY_ITEMS        // Items owned at once (packs/cosmetics)
-  RARITY_COLLECTION      // Collect all cards of a rarity
-  BATTLE_PARTICIPATION   // Total battles entered
-  KILLS_IN_BATTLES       // Combined kill count
-  PLAY_TIME              // Total minutes played
-  SERIES_COMPLETED       // Completed all cards from one series amounts
-  LUCKY_PULL             // Pull legendary from common pack
-  ONE_SHOT               // Win a battle on first turn
-  TRADE_FLIP             // Trade common for x
+  CURRENCY
+  CURRENCY_SPENT
+  CURRENCY_GAINED
+  LOSSES
+  WINS
+  CARDS_COLLECTED
+  PACKS_OPENED
+  CARD_STRENGTH
+  CARD_DEFENCE
+  CARD_HEALTH
+  CARD_RARITY
+  CARD_NAME_LENGTH
+  CARD_NAME_WORDS
+  STATUS
+  ACCOUNT_AGE
+  LOGIN_STREAK
+  TOTAL_LOGINS
+  TRADES_COMPLETED
+  ENHANCED_CARDS
+  CONSECUTIVE_WINS
+  CARDS_SOLD
+  PURCHASES_MADE
+  UNIQUE_CARD_SERIES
+  CARD_SET_COMPLETION
+  BATTLE_RATING
+  TOURNAMENT_WINS
+  ACHIEVEMENT_COUNT
+  INVENTORY_ITEMS
+  RARITY_COLLECTION
+  BATTLE_PARTICIPATION
+  KILLS_IN_BATTLES
+  PLAY_TIME
+  SERIES_COMPLETED
+  LUCKY_PULL
+  ONE_SHOT
+  TRADE_FLIP
 }
 
 enum DataType {
@@ -324,57 +319,23 @@ enum InventoryType {
   ITEM
 }
 
-model ShopSlot {
-  id           Int          @id @default(autoincrement())
-  slot_type    ShopSlotType
-  display_order Int         // Position in shop (1-12)
-  
-  // For pack slots
-  pack_id      Int?
-  pack         Pack?        @relation(fields: [pack_id], references: [id])
-  
-  // For card slots
-  rarity       Rarity?      // For card slots - which rarity tier
-  is_mythical  Boolean      @default(false) // Special mythical card slot
-  
-  // For item slots
-  item_id      Int?
-  item         Item?        @relation(fields: [item_id], references: [id])
-  
-  // Pricing
-  base_price   Float
-  current_price Float?
-  
-  // Availability
-  is_available Boolean      @default(true)
-  last_refresh DateTime     @default(now())
-  next_refresh DateTime     // When this slot refreshes - set in code, not as default
-  
-  purchase_limit Int?       // NULL = unlimited, 1 = one-time
-  
-  created_at   DateTime     @default(now())
-  updated_at   DateTime     @updatedAt
-  
-  purchases    ShopPurchase[]
-}
-
-model ShopPurchase {
+model ShopItem {
   id           Int      @id @default(autoincrement())
-  user_id      Int
-  shop_slot_id Int
-  purchase_date DateTime @default(now())
-  price_paid   Float
-  
-  user         User     @relation(fields: [user_id], references: [id])
-  shopSlot     ShopSlot @relation(fields: [shop_slot_id], references: [id])
-  
-  @@unique([user_id, shop_slot_id]) // Prevent duplicate one-time purchases
+  name         String
+  description  String?
+  item_type    ShopItemType
+  reference_id Int      // ID of the pack or item
+  price        Float
+  image_url    String?
+  rarity       Rarity?  // For card slots
+  is_available Boolean  @default(true)
+  created_at   DateTime @default(now())
 }
 
-enum ShopSlotType {
-  ONE_TIME_PACK        // Special pack, one purchase only
-  MULTI_BUY_PACK       // Boosted chance packs, can buy multiple times
-  CARD_SLOT           // Cards that refresh on purchase
-  MYTHICAL_CARD       // One-time mythical card
-  ITEM_SLOT           // Random items, one purchase only
+enum ShopItemType {
+  ONE_TIME_PACK
+  MULTI_BUY_PACK
+  CARD_SLOT
+  MYTHICAL_CARD
+  ITEM_SLOT
 }
