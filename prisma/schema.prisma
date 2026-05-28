@@ -23,6 +23,7 @@ model User {
   userInventory    UserInventory[]
   userStats        UserStats?  // One-to-one relation
   userCardCompletions UserCardCompletion[]
+  shopPurchases ShopPurchase[]
 }
 
 enum UserStatus {
@@ -179,12 +180,15 @@ model Pack {
   guaranteed_card_ids Json?
   guaranteed_count    Int     @default(0)
   
-  is_available    Boolean @default(true)
-  available_from  DateTime?
-  available_until DateTime?
-  created_at      DateTime @default(now())
+  is_available        Boolean @default(true)
+  available_from      DateTime?
+  available_until     DateTime?
+  created_at          DateTime @default(now())
+  
+  is_special          Boolean @default(false)
+  boost_multiplier    Float?  @default(1.0)
 
-  shopItems ShopItem[]
+  shopSlots ShopSlot[]
 }
 
 model Item {
@@ -197,8 +201,8 @@ model Item {
   is_available Boolean @default(true)
   created_at   DateTime @default(now())
   can_sell     Boolean  @default(true)
-
-  shopItems ShopItem[]
+  
+  shopSlots ShopSlot[]
 }
 
 enum ItemType {
@@ -320,22 +324,57 @@ enum InventoryType {
   ITEM
 }
 
-model ShopItem {
-  id           Int      @id @default(autoincrement())
-  item_type    ShopItemType
+model ShopSlot {
+  id           Int          @id @default(autoincrement())
+  slot_type    ShopSlotType
+  display_order Int         // Position in shop (1-12)
+  
+  // For pack slots
   pack_id      Int?
+  pack         Pack?        @relation(fields: [pack_id], references: [id])
+  
+  // For card slots
+  rarity       Rarity?      // For card slots - which rarity tier
+  is_mythical  Boolean      @default(false) // Special mythical card slot
+  
+  // For item slots
   item_id      Int?
-  price        Float
-  is_available Boolean @default(true)
+  item         Item?        @relation(fields: [item_id], references: [id])
   
-  @@unique([item_type, pack_id])
-  @@unique([item_type, item_id])
+  // Pricing
+  base_price   Float
+  current_price Float?
   
-  pack Pack? @relation(fields: [pack_id], references: [id], onDelete: Cascade)
-  item Item? @relation(fields: [item_id], references: [id], onDelete: Cascade)
+  // Availability
+  is_available Boolean      @default(true)
+  last_refresh DateTime     @default(now())
+  next_refresh DateTime     // When this slot refreshes - set in code, not as default
+  
+  purchase_limit Int?       // NULL = unlimited, 1 = one-time
+  
+  created_at   DateTime     @default(now())
+  updated_at   DateTime     @updatedAt
+  
+  purchases    ShopPurchase[]
 }
 
-enum ShopItemType {
-  PACK
-  ITEM
+model ShopPurchase {
+  id           Int      @id @default(autoincrement())
+  user_id      Int
+  shop_slot_id Int
+  purchase_date DateTime @default(now())
+  price_paid   Float
+  
+  user         User     @relation(fields: [user_id], references: [id])
+  shopSlot     ShopSlot @relation(fields: [shop_slot_id], references: [id])
+  
+  @@unique([user_id, shop_slot_id]) // Prevent duplicate one-time purchases
+}
+
+enum ShopSlotType {
+  ONE_TIME_PACK        // Special pack, one purchase only
+  MULTI_BUY_PACK       // Boosted chance packs, can buy multiple times
+  CARD_SLOT           // Cards that refresh on purchase
+  MYTHICAL_CARD       // One-time mythical card
+  ITEM_SLOT           // Random items, one purchase only
 }

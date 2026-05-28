@@ -83,7 +83,7 @@ interface PackOpeningModalProps {
 export default function PackOpeningModal({ isOpen, cards, onClose, existingCardIds = new Set() }: PackOpeningModalProps) {
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const [flippedCards, setFlippedCards] = useState<boolean[]>([]);
-  const [tooltipCard, setTooltipCard] = useState<{ card: Card; index: number } | null>(null);
+  const [_tooltipCard, setTooltipCard] = useState<{ card: Card; index: number } | null>(null);
   const [allFlipped, setAllFlipped] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<'top' | 'bottom'>('top');
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
