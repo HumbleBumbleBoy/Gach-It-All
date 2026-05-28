@@ -19,10 +19,19 @@ export const apiClient = {
   },
 
   async getCurrency() {
-    const response = await fetch(`/api/user/currency`, {
-      credentials: 'include',
-    });
-    return response.json();
+    try {
+      const response = await fetch(`/api/user/currency`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to fetch currency:', error);
+      return { currency: 0 };
+    }
   },
 
   async getInventory() {
@@ -156,13 +165,22 @@ export const apiClient = {
   },
 
   async purchaseShopItem(data: { itemId: number; quality?: string; enhancement?: string; price?: number }) {
-    const response = await fetch(`/api/shop/purchase`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(data)
-    });
-    return response.json();
+    try {
+      const response = await fetch(`/api/shop/purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Purchase failed:', error);
+      return { success: false, error: 'Network error' };
+    }
   },
 
   async sellInventoryItem(inventoryId: number) {

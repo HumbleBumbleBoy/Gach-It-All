@@ -96,34 +96,42 @@ export default function Navbar() {
     let eventSource: EventSource | null = null;
     
     const connect = () => {
-      eventSource = new EventSource('/api/events/achievements');
-      
-      eventSource.onopen = () => {
-        console.log('SSE connected');
-      };
-      
-      eventSource.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-        console.log('Achievement unlocked:', data);
-        setToast({ show: true, achievement: data.achievement, reward: data.reward });
+      try {
+        eventSource = new EventSource('/api/events/achievements');
         
-        // Refresh all achievement data immediately
-        const [newCurrency, newUserAchievements] = await Promise.all([
-          apiClient.getCurrency(),
-          apiClient.getUserAchievements()
-        ]);
+        eventSource.onopen = () => {
+          console.log('SSE connected');
+        };
         
-        setCurrency(newCurrency.currency ?? 0);
-        setUserAchievements(newUserAchievements.userAchievements || []);
+        eventSource.onmessage = async (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log('Achievement unlocked:', data);
+            setToast({ show: true, achievement: data.achievement, reward: data.reward });
+            
+            const [newCurrency, newUserAchievements] = await Promise.all([
+              apiClient.getCurrency(),
+              apiClient.getUserAchievements()
+            ]);
+            
+            setCurrency(newCurrency.currency ?? 0);
+            setUserAchievements(newUserAchievements.userAchievements || []);
+            
+            setTimeout(() => setToast(null), 5000);
+          } catch (err) {
+            console.error('Failed to parse SSE message:', err);
+          }
+        };
         
-        setTimeout(() => setToast(null), 5000);
-      };
-      
-      eventSource.onerror = (err) => {
-        console.error('SSE error:', err);
-        eventSource?.close();
-        setTimeout(connect, 5000);
-      };
+        eventSource.onerror = (err) => {
+          console.error('SSE error:', err);
+          eventSource?.close();
+          // Retry after 10 seconds instead of 5
+          setTimeout(connect, 10000);
+        };
+      } catch (err) {
+        console.error('Failed to create EventSource:', err);
+      }
     };
     
     connect();

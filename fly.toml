@@ -3,6 +3,7 @@ primary_region = "ams"
 
 [env]
 NODE_ENV = "production"
+NODE_OPTIONS = "--max-old-space-size=768"
 
 [http_service]
 force_https = true
