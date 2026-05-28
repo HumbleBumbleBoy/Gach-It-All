@@ -2,18 +2,85 @@ import Navbar from '../../components/Navbar';
 import { useUser } from '@clerk/react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../../lib/api';
+import PackOpeningModal from '../../components/PackOpeningModal';
+
+interface InventoryItem {
+  id: number;
+  name: string;
+  description: string;
+  image_url: string;
+  quantity: number;
+  item_type: string;
+  reference_id: number;
+  acquired_at: string;
+}
 
 export default function Inventory() {
   const { isSignedIn, user } = useUser();
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [openingPack, setOpeningPack] = useState<InventoryItem | null>(null);
+  const [openedCards, setOpenedCards] = useState<any[]>([]);
+  const [showPackModal, setShowPackModal] = useState(false);
+  const [existingCardIds, setExistingCardIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (isSignedIn && user) {
-      apiClient.getInventory()
-        .then(data => setItems(data.items))
-        .catch(err => console.error('Failed to fetch inventory:', err));
+      refreshInventory();
+      loadExistingCards();
     }
   }, [isSignedIn]);
+
+  const loadExistingCards = async () => {
+    try {
+      const collection = await apiClient.getCollection();
+      const existingIds = new Set<number>(collection.items.map((c: any) => c.card_template_id));
+      setExistingCardIds(existingIds);
+    } catch (error) {
+      console.error('Failed to load existing cards:', error);
+    }
+  };
+
+  const refreshInventory = async () => {
+    try {
+      const data = await apiClient.getInventory();
+      setItems(data.items);
+    } catch (error) {
+      console.error('Failed to fetch inventory:', error);
+    }
+  };
+
+  const openPack = async (pack: InventoryItem) => {
+    if (!isSignedIn) {
+      alert('Please sign in first!');
+      return;
+    }
+    
+    setOpeningPack(pack);
+    
+    try {
+      const result = await apiClient.openPack(pack.reference_id);
+      if (result.success && result.cards && result.cards.length > 0) {
+        setOpenedCards(result.cards);
+        setShowPackModal(true);
+        await refreshInventory();
+        window.dispatchEvent(new CustomEvent('achievements-updated'));
+        window.dispatchEvent(new Event('currency-updated'));
+      } else {
+        alert('Failed to open pack');
+      }
+    } catch (error) {
+      console.error('Failed to open pack:', error);
+      alert('Failed to open pack');
+    } finally {
+      setOpeningPack(null);
+    }
+  };
+
+  const closeModal = () => {
+    setShowPackModal(false);
+    setOpenedCards([]);
+    loadExistingCards(); // Refresh existing cards after opening
+  };
 
   return (
     <>
@@ -26,7 +93,7 @@ export default function Inventory() {
         
         {items.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6">
-            {items.map((item: any) => (
+            {items.map((item: InventoryItem) => (
               <div key={item.id} className="bg-gray-800 rounded-lg p-3">
                 <img src={item.image_url} alt={item.name} className="h-32 w-32 rounded mb-2 mx-auto object-contain" />
                 <p className="text-white text-sm font-semibold truncate">{item.name}</p>
@@ -34,6 +101,15 @@ export default function Inventory() {
                 <div className='flex justify-between gap-1 mt-1 text-xs'>
                   {item.quantity > 1 && <p className="text-gray-500">x{item.quantity}</p>}
                 </div>
+                {item.item_type === 'PACK' && (
+                  <button
+                    onClick={() => openPack(item)}
+                    disabled={!!openingPack}
+                    className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 rounded transition-colors disabled:opacity-50"
+                  >
+                    {openingPack?.id === item.id ? 'Opening...' : 'Open Pack'}
+                  </button>
+                )}
                 {item.name === "Welcome badge" && (
                   <p className="text-yellow-400 text-xs mt-1">Joined: {new Date(item.acquired_at).toLocaleDateString()}</p>
                 )}
@@ -42,6 +118,13 @@ export default function Inventory() {
           </div>
         )}
       </main>
+      
+      <PackOpeningModal
+        isOpen={showPackModal}
+        cards={openedCards}
+        onClose={closeModal}
+        existingCardIds={existingCardIds}
+      />
     </>
   );
 }
