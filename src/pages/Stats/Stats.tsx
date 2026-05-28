@@ -119,7 +119,7 @@ export default function Stats() {
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-gray-300">Net profit:</p>
-                  <p className="text-base font-semibold text-white">${stats.total_currency_gained.toFixed(2) - stats.total_currency_spent.toFixed(2)}</p>
+                  <p className="text-base font-semibold text-white">${(stats.total_currency_gained.toFixed(2) - stats.total_currency_spent.toFixed(2)).toFixed(2)}</p>
                 </div>
               </div>
             </div>
