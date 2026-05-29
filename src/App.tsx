@@ -141,7 +141,7 @@ function App() {
         <div className="bg-gray-800/50 rounded-lg p-6 mb-8">
           <h2 className="text-xl font-bold text-white mb-3">Shop & The Market</h2>
           <p className="text-gray-300 leading-relaxed">
-            When checking the nav bar you might notice that there are 2 stores. This is a way to give you both fixed prices and regular items in <a href='/shop' className='text-indigo-400 hover:text-indigo-300 underline'>the shop</a>, as well as allow trade between players with any item or currency they want to use in <a href='/market' className='text-indigo-400 hover:text-indigo-300 underline'>the market</a>. <span className='text-gray-500 text-xs'>Currently they are both under development.</span>
+            When checking the nav bar you might notice that there are 2 stores. This is a way to give you both fixed prices and regular items in <a href='/shop' className='text-indigo-400 hover:text-indigo-300 underline'>the shop</a>, as well as allow trade between players with any item or currency they want to use in <a href='/market' className='text-indigo-400 hover:text-indigo-300 underline'>the market</a>. <span className='text-gray-500 text-xs'>Market currently under development.</span>
           </p>
         </div>
 

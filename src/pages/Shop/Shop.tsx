@@ -393,7 +393,7 @@ export default function Shop() {
         }`}
       >
         <div>
-          <h3 className={`text-xl font-bold truncate ${titleColor}`}>{item.name || slot.title}</h3>
+          <h3 className={`text-xl font-bold truncate text-center ${titleColor}`}>{item.name || slot.title}</h3>
         </div>
         
         {item.image_url && (
@@ -447,7 +447,7 @@ export default function Shop() {
                 : 'bg-gray-600 cursor-not-allowed text-gray-400'
             } disabled:opacity-50`}
           >
-            {isPurchased ? 'Purchased' : 'Buy'}
+            {isPurchased ? 'Sold' : 'Buy'}
           </button>
         </div>
       </div>

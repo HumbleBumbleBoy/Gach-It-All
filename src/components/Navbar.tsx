@@ -263,7 +263,7 @@ export default function Navbar() {
     <>
       <Disclosure
         as="nav"
-        className="relative bg-gray-800/50 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-white/10"
+        className="sticky top-0 z-50 bg-gray-800 backdrop-blur-sm after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-white/10"
       >
         <div className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
           <div className="relative flex h-16 items-center justify-between">
@@ -330,7 +330,7 @@ export default function Navbar() {
                     </MenuItem>
 
                     <MenuItem>
-                      <div className="flex gap-2 p-4 border-b border-gray-700">
+                      <div className="flex flex-wrap gap-2 p-4 border-b border-gray-700 justify-center">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
