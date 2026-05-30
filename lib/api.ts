@@ -164,23 +164,14 @@ export const apiClient = {
     return response.json();
   },
 
-  async purchaseShopItem(data: { itemId: number; quality?: string; enhancement?: string; price?: number }) {
-    try {
-      const response = await fetch(`/api/shop/purchase`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error('Purchase failed:', error);
-      return { success: false, error: 'Network error' };
-    }
+  async purchaseShopItem(data: { itemId: number; quality?: string; enhancement?: string; price?: number; slotId?: number }) {
+    const response = await fetch(`/api/shop/purchase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data)
+    });
+    return response.json();
   },
 
   async sellInventoryItem(inventoryId: number) {
@@ -189,6 +180,13 @@ export const apiClient = {
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ inventoryId })
+    });
+    return response.json();
+  },
+
+  async getPurchasedSlots() {
+    const response = await fetch(`/api/shop/purchases`, {
+      credentials: 'include',
     });
     return response.json();
   },

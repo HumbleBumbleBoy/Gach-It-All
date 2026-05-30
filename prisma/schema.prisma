@@ -23,6 +23,7 @@ model User {
   userInventory    UserInventory[]
   userStats        UserStats?
   userCardCompletions UserCardCompletion[]
+  shopPurchases    ShopPurchase[]
 }
 
 enum UserStatus {
@@ -317,6 +318,19 @@ model UserInventory {
 enum InventoryType {
   PACK
   ITEM
+}
+
+model ShopPurchase {
+  id           Int      @id @default(autoincrement())
+  user_id      Int
+  slot_id      Int      // The slot ID (1-12 from frontend)
+  purchase_date DateTime @default(now())
+  price_paid   Float
+  item_id      Int      // The ID of the ShopItem that was purchased
+  
+  user User @relation(fields: [user_id], references: [id])
+  
+  @@unique([user_id, slot_id]) // Prevent buying the same slot twice in a day (for one-time items)
 }
 
 model ShopItem {

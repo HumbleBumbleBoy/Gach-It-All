@@ -1430,7 +1430,7 @@ app.post('/api/shop/purchase', async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
   
-  const { itemId, quality, enhancement, price } = req.body;
+  const { itemId, quality, enhancement, price, slotId } = req.body;
   
   try {
     const user = await prisma.user.findUnique({
@@ -1439,6 +1439,29 @@ app.post('/api/shop/purchase', async (req, res) => {
     });
     
     if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // Get shop item to check if it's one-time
+    const shopItem = await prisma.shopItem.findUnique({
+      where: { id: itemId }
+    });
+    
+    const isOneTime = shopItem?.item_type === 'ONE_TIME_PACK' || 
+                      shopItem?.item_type === 'MYTHICAL_CARD' || 
+                      shopItem?.item_type === 'ITEM_SLOT';
+    
+    // For one-time items, check if already purchased today
+    if (isOneTime) {
+      const existingPurchase = await prisma.shopPurchase.findFirst({
+        where: {
+          user_id: user.id,
+          slot_id: slotId
+        }
+      });
+      
+      if (existingPurchase) {
+        return res.status(400).json({ error: 'You have already purchased this item' });
+      }
+    }
     
     if (user.currency < price) {
       return res.status(400).json({ error: `Insufficient currency. Need $${price}, have $${user.currency.toFixed(2)}` });
@@ -1452,7 +1475,6 @@ app.post('/api/shop/purchase', async (req, res) => {
     });
     
     if (cardTemplate && quality && enhancement) {
-      // Create the card with the specified quality and enhancement
       const newCard = await prisma.userCards.create({
         data: {
           user_id: user.id,
@@ -1463,14 +1485,7 @@ app.post('/api/shop/purchase', async (req, res) => {
         include: { cardTemplate: true }
       });
       reward = { type: 'card', card: newCard };
-    } else {
-      // Handle pack or item purchase
-      const shopItem = await prisma.shopItem.findUnique({
-        where: { id: itemId, is_available: true }
-      });
-      
-      if (!shopItem) return res.status(404).json({ error: 'Item not found' });
-      
+    } else if (shopItem) {
       switch (shopItem.item_type) {
         case 'ONE_TIME_PACK':
         case 'MULTI_BUY_PACK':
@@ -1508,7 +1523,8 @@ app.post('/api/shop/purchase', async (req, res) => {
           break;
           
         default:
-          return res.status(400).json({ error: 'Unknown item type' });
+          // For CARD_SLOT and MYTHICAL_CARD, they're handled above
+          break;
       }
     }
     
@@ -1516,7 +1532,7 @@ app.post('/api/shop/purchase', async (req, res) => {
       return res.status(500).json({ error: 'Failed to generate reward' });
     }
     
-    // Deduct currency
+    // Deduct currency and record purchase
     await prisma.$transaction([
       prisma.user.update({
         where: { id: user.id },
@@ -1528,7 +1544,16 @@ app.post('/api/shop/purchase', async (req, res) => {
           purchases_made: { increment: 1 },
           total_currency_spent: { increment: price }
         }
-      })
+      }),
+      // Only record purchase for one-time items
+      ...(isOneTime ? [prisma.shopPurchase.create({
+        data: {
+          user_id: user.id,
+          slot_id: slotId,
+          price_paid: price,
+          item_id: itemId
+        }
+      })] : [])
     ]);
     
     await checkAndUpdateAchievements(user.id, Condition.PURCHASES_MADE);
@@ -1539,6 +1564,26 @@ app.post('/api/shop/purchase', async (req, res) => {
     console.error('Purchase failed:', error);
     res.status(500).json({ error: 'Purchase failed: ' + (error as Error).message });
   }
+});
+
+// Get user's purchased slots (for one-time items)
+app.get('/api/shop/purchases', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true }
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  const purchases = await prisma.shopPurchase.findMany({
+    where: { user_id: user.id },
+    select: { slot_id: true }
+  });
+  
+  res.json({ purchasedSlots: purchases.map(p => p.slot_id) });
 });
 
 app.post('/api/inventory/sell', async (req, res) => {

@@ -96,7 +96,6 @@ export default function Shop() {
       slotItems.forEach((value, key) => {
         toSave[key] = value;
       });
-      localStorage.setItem('shopItems', JSON.stringify(toSave));
     }
   }, [slotItems]);
 
@@ -106,7 +105,6 @@ export default function Shop() {
       slotQualities.forEach((value, key) => {
         toSave[key] = value;
       });
-      localStorage.setItem('shopQualities', JSON.stringify(toSave));
     }
   }, [slotQualities]);
 
@@ -134,9 +132,11 @@ export default function Shop() {
   };
 
   const loadPurchasedHistory = async () => {
-    const saved = localStorage.getItem('purchasedSlots');
-    if (saved) {
-      setPurchasedSlots(new Set(JSON.parse(saved)));
+    try {
+      const data = await apiClient.getPurchasedSlots();
+      setPurchasedSlots(new Set(data.purchasedSlots || []));
+    } catch (error) {
+      console.error('Failed to load purchased history:', error);
     }
   };
 
@@ -226,7 +226,6 @@ export default function Shop() {
       }
       
       setSlotItems(newSlotItems);
-      localStorage.setItem('shopLastRefresh', today);
     } catch (error) {
       console.error('Failed to load shop:', error);
     } finally {
@@ -252,7 +251,8 @@ export default function Shop() {
         itemId: item.id,
         quality: item.quality,
         enhancement: item.enhancement,
-        price: item.finalPrice || item.price
+        price: item.finalPrice || item.price,
+        slotId: slot.id
       });
       
       if (result.success) {
@@ -270,7 +270,6 @@ export default function Shop() {
           const newPurchased = new Set(purchasedSlots);
           newPurchased.add(slot.id);
           setPurchasedSlots(newPurchased);
-          localStorage.setItem('purchasedSlots', JSON.stringify(Array.from(newPurchased)));
         }
         
         if (slot.type === 'CARD_SLOT' && !slot.limitOne) {
@@ -343,8 +342,7 @@ export default function Shop() {
           newMap.forEach((value, key) => {
             toSave[key] = value;
           });
-          localStorage.setItem('shopItems', JSON.stringify(toSave));
-          
+  
           return newMap;
         });
       }
