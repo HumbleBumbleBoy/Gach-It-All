@@ -1141,7 +1141,6 @@ export default function Collection() {
           </div>
         )}
 
-        {/* Modal - only if logged in */}
         {isSignedIn && viewMode === 'your' && selectedRootCard && selectedVariants.length > 0 && (
           <div 
             onClick={() => { setSelectedRootCard(null); setSelectedVariants([]); }}
@@ -1149,113 +1148,124 @@ export default function Collection() {
           >
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="bg-gray-800 p-5 rounded-lg max-w-lg w-[90%] max-h-[80vh] overflow-y-auto"
+              className="bg-gray-800 rounded-lg max-w-5xl w-[95%] max-h-[85vh] flex flex-col overflow-hidden"
             >
-              <div className="flex justify-between items-center mb-4">
-                <h2 className={`text-2xl font-bold ${getRarityStyle(selectedRootCard.rarity).textColor}`}>
-                  {selectedRootCard.name}
-                </h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPriorityEnhancements(!priorityEnhancements)}
-                    className={`px-2 py-1 text-xs rounded transition-colors ${
-                      priorityEnhancements 
-                        ? 'bg-indigo-600 text-white' 
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }`}
-                    title={priorityEnhancements ? 'Prioritizing Enhancements' : 'Prioritizing Quality'}
-                  >
-                    Enhancements First
-                  </button>
-                  <button
-                    onClick={() => setVariantSortDirection(variantSortDirection === 'asc' ? 'desc' : 'asc')}
-                    className="px-2 py-1 text-xs rounded transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    title={variantSortDirection === 'asc' ? 'Ascending (Worst to Best)' : 'Descending (Best to Worst)'}
-                  >
-                    {variantSortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
-                  </button>
+              {/* Header - stays at top */}
+              <div className="p-5 pb-2 border-b border-gray-700 shrink-0">
+                <div className="flex justify-between items-center">
+                  <h2 className={`text-2xl font-bold ${getRarityStyle(selectedRootCard.rarity).textColor}`}>
+                    {selectedRootCard.name}
+                  </h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPriorityEnhancements(!priorityEnhancements)}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        priorityEnhancements 
+                          ? 'bg-indigo-600 text-white' 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                      title={priorityEnhancements ? 'Prioritizing Enhancements' : 'Prioritizing Quality'}
+                    >
+                      Enhancements First
+                    </button>
+                    <button
+                      onClick={() => setVariantSortDirection(variantSortDirection === 'asc' ? 'desc' : 'asc')}
+                      className="px-2 py-1 text-xs rounded transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      title={variantSortDirection === 'asc' ? 'Ascending (Worst to Best)' : 'Descending (Best to Worst)'}
+                    >
+                      {variantSortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {viewMode === 'your' && selectedCardInfo && (
-                <div className="fixed right-0 w-80 bg-gray-800 rounded-l-lg shadow-xl z-40 p-4 border-l border-t border-b border-gray-700 max-sm:hidden">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className={`font-bold text-lg ${getRarityStyle(selectedCardInfo.rarity).textColor}`}>
-                      {selectedCardInfo.name}
-                    </h3>
-                    <button
-                      onClick={() => setSelectedCardInfo(null)}
-                      className="text-gray-400 hover:text-white text-xl leading-none"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="text-gray-300 text-sm leading-relaxed max-h-96 overflow-y-auto">
-                    {selectedCardInfo.description || 'No description available.'}
-                  </div>
-                  <div className="mt-3 text-xs text-gray-500">
-                    {selectedCardInfo.series || 'Unknown'} | {selectedCardInfo.type || 'Unknown'}
-                  </div>
-                </div>
-              )}
-              
-              {getSortedVariants().map((variant: any) => (
-                <div 
-                  key={variant.key}
-                  className="border border-gray-700 rounded-lg p-3 mb-3 bg-gray-900"
-                >
-                  <div className="flex justify-between items-center mb-2">
-                    <div>
-                      <span className="font-semibold">Quality: {variant.quality}</span>
-                      <span className="mx-2 text-gray-500">•</span>
-                      <span>Enhancement: {variant.enhancement}</span>
-                    </div>
-                    <span className="bg-gray-700 px-2 py-1 rounded-full text-xs">
-                      x{variant.quantity}
-                    </span>
-                  </div>
-                  
-                  <div className="text-sm text-gray-300 mb-2">
-                    <div className="mt-1">HP: {variant.base_hp} | ATK: {variant.base_atk} | DEF: {variant.base_def} 
-                      {variant.enhancement !== 'BASIC' && (
-                      <span className="text-green-500 text-xs ml-3">
-                        {variant.enhancement === 'FOILED' && '+50% DEF'}
-                        {variant.enhancement === 'SHINY' && '+50% HP'}
-                        {variant.enhancement === 'SIGNED' && '+50% ATK'}
-                      </span>
-                      )}
-                    </div> 
-                  </div>
-                  
-                  <div className="text-sm mb-3 flex justify-between items-baseline">
-                    <span>Value: ${variant.cardPrice.toFixed(2)} | Sell: ${variant.sellPrice.toFixed(2)} each</span>
-                    {variant.quantity > 1 && (
-                      <span className="text-xs text-gray-400">
-                        Total: ${(variant.sellPrice * variant.quantity).toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => sellOneCard(variant.cards[0], variant, selectedRootCard)}
-                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm py-1.5 rounded transition-colors"
-                    >
-                      Sell 1
-                    </button>
-                    {variant.quantity > 1 && (
-                      <button
-                        onClick={() => sellAllFromVariant(variant, selectedRootCard)}
-                        className="flex-1 bg-red-700 hover:bg-red-800 text-white text-sm py-1.5 rounded transition-colors"
+              {/* Two-column layout inside scrollable area */}
+              <div className="flex-1 min-h-0">
+                <div className="flex h-full">
+                  {/* Left column */}
+                  <div className="flex-1 overflow-y-auto p-5 max-h-[calc(85vh-200px)]">
+                    {getSortedVariants().map((variant: any) => (
+                      <div 
+                        key={variant.key}
+                        className="border border-gray-700 rounded-lg p-3 mb-3 bg-gray-900"
                       >
-                        Sell All ({variant.quantity})
-                      </button>
-                    )}
+                        <div className="flex justify-between items-center mb-2">
+                          <div>
+                            <span className="font-semibold">Quality: {variant.quality}</span>
+                            <span className="mx-2 text-gray-500">•</span>
+                            <span>Enhancement: {variant.enhancement}</span>
+                          </div>
+                          <span className="bg-gray-700 px-2 py-1 rounded-full text-xs">
+                            x{variant.quantity}
+                          </span>
+                        </div>
+                        
+                        <div className="text-sm text-gray-300 mb-2">
+                          <div className="mt-1">HP: {variant.base_hp} | ATK: {variant.base_atk} | DEF: {variant.base_def} 
+                            {variant.enhancement !== 'BASIC' && (
+                            <span className="text-green-500 text-xs ml-3">
+                              {variant.enhancement === 'FOILED' && '+50% DEF'}
+                              {variant.enhancement === 'SHINY' && '+50% HP'}
+                              {variant.enhancement === 'SIGNED' && '+50% ATK'}
+                            </span>
+                            )}
+                          </div> 
+                        </div>
+                        
+                        <div className="text-sm mb-3 flex justify-between items-baseline">
+                          <span>Value: ${variant.cardPrice.toFixed(2)} | Sell: ${variant.sellPrice.toFixed(2)} each</span>
+                          {variant.quantity > 1 && (
+                            <span className="text-xs text-gray-400">
+                              Total: ${(variant.sellPrice * variant.quantity).toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => sellOneCard(variant.cards[0], variant, selectedRootCard)}
+                            className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm py-1.5 rounded transition-colors"
+                          >
+                            Sell 1
+                          </button>
+                          {variant.quantity > 1 && (
+                            <button
+                              onClick={() => sellAllFromVariant(variant, selectedRootCard)}
+                              className="flex-1 bg-red-700 hover:bg-red-800 text-white text-sm py-1.5 rounded transition-colors"
+                            >
+                              Sell All ({variant.quantity})
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              ))}
 
-              <div className="flex gap-2 mt-4">
+                  {/* Right column - Description panel */}
+                  {selectedCardInfo && (
+                    <div className="w-80 border-l border-gray-700 flex flex-col shrink-0 overflow-y-auto max-h-[calc(85vh-200px)]">
+                      <div className="p-4 border-b border-gray-700 shrink-0">
+                        <div className="flex justify-between items-start">
+                          <h3 className={`font-bold text-lg ${getRarityStyle(selectedCardInfo.rarity).textColor}`}>
+                            {selectedCardInfo.name}
+                          </h3>
+                        </div>
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-4">
+                        <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap wrap-break-words">
+                          {selectedCardInfo.description || 'No description available.'}
+                        </div>
+                        <div className="mt-3 text-xs text-gray-500">
+                          {selectedCardInfo.series || 'Unknown'} | {selectedCardInfo.type || 'Unknown'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer - sticks to bottom */}
+              <div className="flex gap-2 p-5 pt-3 bg-gray-800 border-t border-gray-700 shrink-0">
                 {selectedVariants.flatMap(v => v.cards).length > 1 && (
                   <button
                     onClick={() => sellAllUntilOne(selectedRootCard)}
