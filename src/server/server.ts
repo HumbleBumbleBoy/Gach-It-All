@@ -3,8 +3,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Condition, Comparator, Quality, Reward, Enhancement, UserStatus, Rarity } from "@prisma/client";
-import type { Pack } from "@prisma/client";
-
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -40,26 +38,6 @@ app.use((_req, res, next) => {
   next();
 });
 
-interface PackWithRates extends Pack {
-  tarnished_rate: number;
-  poor_rate: number;
-  regular_rate: number;
-  good_rate: number;
-  crisp_rate: number;
-  basic_rate: number;
-  foiled_rate: number;
-  shiny_rate: number;
-  signed_rate: number;
-  common_rate: number;
-  uncommon_rate: number;
-  sparse_rate: number;
-  rare_rate: number;
-  uber_rare_rate: number;
-  mythical_rate: number;
-  legendary_rate: number;
-  special_rate: number;
-}
-
 // ----------------- helper functions
 
 async function grantReward(userId: number, rewardType: Reward, rewardValue: string) {
@@ -70,7 +48,7 @@ async function grantReward(userId: number, rewardType: Reward, rewardValue: stri
       
     case Reward.CARD:
       const qualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
-      const qualityWeights = [20, 30, 30, 15, 5]; // percentages
+      const qualityWeights = [20, 30, 30, 15, 5];
       const randomNum = Math.random() * 100;
       let cumulative = 0;
       let selectedQuality = qualities[0];
@@ -83,7 +61,7 @@ async function grantReward(userId: number, rewardType: Reward, rewardValue: stri
       }
       
       const enhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
-      const enhancementWeights = [85, 10, 4, 1];  // percentages
+      const enhancementWeights = [85, 10, 4, 1];
       let enhancementCumulative = 0;
       let selectedEnhancement = enhancements[0];
       const enhancementRandom = Math.random() * 100;
@@ -176,7 +154,6 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
     let currentValue: number = 0;
     let targetValue: number = ach.value_int ?? ach.value_float ?? 0;
     
-    // Get current value based on condition
     switch (ach.condition) {
       case Condition.WINS:
         currentValue = user.userStats.wins;
@@ -224,7 +201,6 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
     let isComplete = false;
     let progress = Math.min(currentValue, targetValue);
     
-    // Always check completion regardless of targetValue
     switch (ach.comparator) {
       case Comparator.MORE_THAN:
         isComplete = currentValue > targetValue;
@@ -253,7 +229,6 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
     });
     
     if (existing) {
-      // Only update if progress changed
       if (existing.progress !== progress) {
         await prisma.userAchievement.update({
           where: { id: existing.id },
@@ -270,7 +245,6 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
       });
     }
     
-    // Check if completed (either just completed or was already completed)
     const justCompleted = isComplete && (!existing || (existing && !existing.completed_at));
     
     if (justCompleted) {
@@ -370,14 +344,11 @@ const FALLBACK_STATS: Record<string, RarityStats> = {
 };
 
 function weightedRandom(min: number, max: number, skew: number = 1): number {
-  // normal distribution
   let u = 0, v = 0;
   while (u === 0) u = Math.random();
   while (v === 0) v = Math.random();
   let num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-  // Normalize to ~[-1, 1] range
   num = num / 4.0;
-  // Apply skew (positive skew pushes values higher)
   if (skew !== 1) {
     num = Math.pow((num + 1) / 2, skew) * 2 - 1;
   }
@@ -387,8 +358,6 @@ function weightedRandom(min: number, max: number, skew: number = 1): number {
 
 function calculateSkew(price: number, priceRange: StatRange): number {
   const percent = (price - priceRange.min) / (priceRange.max - priceRange.min);
-  // Lower price = higher skew (pushes stats toward min)
-  // Higher price = lower skew (pushes stats toward max)
   return 2.0 - (0.5 + (percent * 1.5));
 }
 
@@ -400,7 +369,6 @@ function generateFallbackStats(rarity: string, existingStats?: {
 }): { hp: number; atk: number; def: number; price: number } {
   const ranges = FALLBACK_STATS[rarity] || FALLBACK_STATS.COMMON;
   
-  // Generate price first (it determines skew for other stats)
   let price = existingStats?.price;
   if (!price) {
     price = roundCurrency(weightedRandom(ranges.price.min, ranges.price.max, 1));
@@ -408,7 +376,6 @@ function generateFallbackStats(rarity: string, existingStats?: {
 
   const skew = calculateSkew(price, ranges.price);
   
-  // Generate stats with price-based skew
   const hp = existingStats?.hp ?? Math.round(weightedRandom(ranges.hp.min, ranges.hp.max, skew));
   const atk = existingStats?.atk ?? Math.round(weightedRandom(ranges.atk.min, ranges.atk.max, skew));
   const def = existingStats?.def ?? Math.round(weightedRandom(ranges.def.min, ranges.def.max, skew));
@@ -418,7 +385,7 @@ function generateFallbackStats(rarity: string, existingStats?: {
 
 let cachedCardTemplates: any[] | null = null;
 let lastCacheTime: number = 0;
-const CACHE_TTL: number = 60000; // 1 minute
+const CACHE_TTL: number = 60000;
 
 async function getCachedCardTemplates(): Promise<any[]> {
   const now = Date.now();
@@ -427,6 +394,43 @@ async function getCachedCardTemplates(): Promise<any[]> {
     lastCacheTime = now;
   }
   return cachedCardTemplates;
+}
+
+// Add this function before the generatePackCards function
+async function ensureCardStats(cardTemplate: any): Promise<any> {
+  // Check if card has all required stats
+  const needsFallback = !cardTemplate.base_hp || !cardTemplate.base_atk || !cardTemplate.base_def || !cardTemplate.base_price;
+  
+  if (needsFallback) {
+    const fallbackStats = generateFallbackStats(cardTemplate.rarity, {
+      hp: cardTemplate.base_hp || undefined,
+      atk: cardTemplate.base_atk || undefined,
+      def: cardTemplate.base_def || undefined,
+      price: cardTemplate.base_price || undefined
+    });
+    
+    // Update the card template in DB for future use
+    await prisma.cardTemplates.update({
+      where: { id: cardTemplate.id },
+      data: {
+        base_hp: fallbackStats.hp,
+        base_atk: fallbackStats.atk,
+        base_def: fallbackStats.def,
+        base_price: fallbackStats.price
+      }
+    });
+    
+    // Return updated card with stats
+    return {
+      ...cardTemplate,
+      base_hp: fallbackStats.hp,
+      base_atk: fallbackStats.atk,
+      base_def: fallbackStats.def,
+      base_price: fallbackStats.price
+    };
+  }
+  
+  return cardTemplate;
 }
 
 // -------------- API Routes 
@@ -522,10 +526,9 @@ app.post('/api/user-login', async (req, res) => {
       }
     });
 
-    await checkAndUpdateAchievements(dbUser.id, Condition.PLAY_TIME); // update time achievements on login
-    await checkAndUpdateAchievements(dbUser.id, Condition.TOTAL_LOGINS);  // update login achievements on login
+    await checkAndUpdateAchievements(dbUser.id, Condition.PLAY_TIME);
+    await checkAndUpdateAchievements(dbUser.id, Condition.TOTAL_LOGINS);
 
-    // Check if user already has the badge
     const hasBadge = await prisma.userInventory.findFirst({
       where: {
         user_id: dbUser.id,
@@ -569,7 +572,7 @@ app.post('/api/user/currency', async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
   
-  const { amount } = req.body; // positive = gain, negative = spend
+  const { amount } = req.body;
   
   const user = await prisma.user.findUnique({
     where: { clerkId: auth.userId },
@@ -624,9 +627,8 @@ app.get('/api/user/inventory', async (req, res) => {
         select: { name: true, image_url: true, description: true, price: true }
       });
       if (details) {
-        // All packs can be sold
         canSell = true;
-        sellPrice = details.price * 0.8; // 80% of pack price
+        sellPrice = details.price * 0.8;
       }
     }
     
@@ -727,19 +729,16 @@ app.post('/api/user/clear-all-data', async (req, res) => {
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    // Delete in correct order to avoid foreign key constraints
     await prisma.userCards.deleteMany({ where: { user_id: user.id } });
     await prisma.userInventory.deleteMany({ where: { user_id: user.id } });
     await prisma.userAchievement.deleteMany({ where: { user_id: user.id } });
     await prisma.userStats.deleteMany({ where: { user_id: user.id } });
     
-    // Reset user currency to 0
     await prisma.user.update({
       where: { id: user.id },
       data: { currency: 0 }
     });
     
-    // Create fresh stats record
     await prisma.userStats.create({
       data: {
         user_id: user.id,
@@ -771,7 +770,7 @@ app.get('/api/achievements', async (_req, res) => {
   res.json({ achievements });
 });
 
-const clients = new Map<string, any>(); // active connections
+const clients = new Map<string, any>();
 
 app.get('/api/events/achievements', (req, res) => {
   const auth = getAuth(req);
@@ -855,7 +854,6 @@ app.post('/api/cards/sell', async (req, res) => {
   
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // Get card with user in one query
       const card = await tx.userCards.findFirst({
         where: { 
           id: cardId, 
@@ -873,7 +871,6 @@ app.post('/api/cards/sell', async (req, res) => {
         (qualityMultipliers[card.quality] || 1) * 
         (enhancementMultipliers[card.enhancement] || 1) * 0.9);
       
-      // Update everything in parallel
       await Promise.all([
         tx.user.update({
           where: { id: card.user.id },
@@ -889,7 +886,6 @@ app.post('/api/cards/sell', async (req, res) => {
         tx.userCards.delete({ where: { id: cardId } })
       ]);
       
-      // Get updated unique count - FIXED
       const uniqueTemplates = await tx.userCards.findMany({
         where: { user_id: card.user.id },
         select: { card_template_id: true },
@@ -904,7 +900,6 @@ app.post('/api/cards/sell', async (req, res) => {
       return { sellPrice, newCurrency: card.user.currency + sellPrice, userId: card.user.id };
     });
     
-    // Async achievements (don't await to speed up response)
     Promise.all([
       checkAndUpdateAchievements(result.userId, Condition.CARDS_SOLD),
       checkAndUpdateAchievements(result.userId, Condition.CARDS_COLLECTED)
@@ -931,7 +926,6 @@ app.post('/api/cards/batch-sell', async (req, res) => {
   
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // Get all cards with user in one query
       const cards = await tx.userCards.findMany({
         where: { 
           id: { in: cardIds },
@@ -953,7 +947,6 @@ app.post('/api/cards/batch-sell', async (req, res) => {
         totalSellPrice += sellPrice;
       }
       
-      // Update everything in parallel
       await Promise.all([
         tx.user.update({
           where: { id: cards[0].user.id },
@@ -971,7 +964,6 @@ app.post('/api/cards/batch-sell', async (req, res) => {
         })
       ]);
       
-      // Get updated unique count
       const uniqueTemplates = await tx.userCards.findMany({
         where: { user_id: cards[0].user.id },
         select: { card_template_id: true },
@@ -986,7 +978,6 @@ app.post('/api/cards/batch-sell', async (req, res) => {
       return { totalSellPrice, cardCount: cards.length, userId: cards[0].user.id };
     });
     
-    // Async achievements
     Promise.all([
       checkAndUpdateAchievements(result.userId, Condition.CARDS_SOLD),
       checkAndUpdateAchievements(result.userId, Condition.CARDS_COLLECTED)
@@ -1040,7 +1031,6 @@ app.post('/api/gacha/pack', async (req, res) => {
   
   if (!pack) return res.status(404).json({ error: 'Pack not found' });
   
-  // Check if user has pack in inventory
   const inventoryPack = await prisma.userInventory.findFirst({
     where: {
       user_id: user.id,
@@ -1051,7 +1041,6 @@ app.post('/api/gacha/pack', async (req, res) => {
     select: { id: true, quantity: true }
   });
   
-  // Process inventory/cost in parallel with card generation
   const [cards, _updateResult] = await Promise.all([
     generatePackCards(pack, user.id),
     (async () => {
@@ -1074,7 +1063,6 @@ app.post('/api/gacha/pack', async (req, res) => {
     })()
   ]);
   
-  // Update stats in parallel
   await Promise.all([
     prisma.userStats.update({
       where: { user_id: user.id },
@@ -1093,7 +1081,6 @@ app.post('/api/gacha/pack', async (req, res) => {
     })()
   ]);
   
-  // Fire and forget achievements (don't await)
   Promise.all([
     checkAndUpdateAchievements(user.id, Condition.PACKS_OPENED),
     checkAndUpdateAchievements(user.id, Condition.CARDS_COLLECTED)
@@ -1103,10 +1090,8 @@ app.post('/api/gacha/pack', async (req, res) => {
 });
 
 async function generatePackCards(pack: any, userId: number) {
-  // Get cached card templates
   let availableCards: any[] = await getCachedCardTemplates();
   
-  // Apply filters (these are fast in-memory operations)
   if (pack.included_series && Array.isArray(pack.included_series)) {
     availableCards = availableCards.filter((card: any) => 
       pack.included_series.includes(card.series)
@@ -1125,7 +1110,6 @@ async function generatePackCards(pack: any, userId: number) {
     );
   }
   
-  // Get guaranteed cards
   let guaranteedCards: any[] = [];
   if (pack.guaranteed_card_ids && pack.guaranteed_count > 0) {
     let guaranteedIds: number[] = [];
@@ -1142,7 +1126,6 @@ async function generatePackCards(pack: any, userId: number) {
       guaranteedIds = pack.guaranteed_card_ids;
     }
     
-    // Batch fetch guaranteed cards
     guaranteedCards = await prisma.cardTemplates.findMany({
       where: { id: { in: guaranteedIds.slice(0, pack.guaranteed_count) } }
     });
@@ -1150,7 +1133,6 @@ async function generatePackCards(pack: any, userId: number) {
   
   const remainingCards = pack.cards_count - guaranteedCards.length;
   
-  // Generate all cards in a single batch
   const cardsToCreate: any[] = [];
   
   for (let i = 0; i < remainingCards; i++) {
@@ -1164,7 +1146,6 @@ async function generatePackCards(pack: any, userId: number) {
       selectedCard = cardsOfRarity[Math.floor(Math.random() * cardsOfRarity.length)];
     }
     
-    // Generate stats if missing
     const needsFallback = !selectedCard.base_hp || !selectedCard.base_atk || !selectedCard.base_def || !selectedCard.base_price;
     if (needsFallback) {
       const fallbackStats = generateFallbackStats(selectedCard.rarity, {
@@ -1174,7 +1155,6 @@ async function generatePackCards(pack: any, userId: number) {
         price: selectedCard.base_price || undefined
       });
       
-      // Update the card template in DB for future use
       await prisma.cardTemplates.update({
         where: { id: selectedCard.id },
         data: {
@@ -1185,14 +1165,12 @@ async function generatePackCards(pack: any, userId: number) {
         }
       });
       
-      // Update the local object
       selectedCard.base_hp = fallbackStats.hp;
       selectedCard.base_atk = fallbackStats.atk;
       selectedCard.base_def = fallbackStats.def;
       selectedCard.base_price = fallbackStats.price;
     }
     
-    // Generate quality and enhancement
     const qualityRandom = Math.random() * 100;
     let quality: Quality = Quality.REGULAR;
     let qualityCumulative = 0;
@@ -1240,9 +1218,7 @@ async function generatePackCards(pack: any, userId: number) {
     });
   }
   
-  // Add guaranteed cards
   for (const guaranteedCard of guaranteedCards) {
-    // Generate stats if missing for guaranteed cards too
     const needsFallback = !guaranteedCard.base_hp || !guaranteedCard.base_atk || !guaranteedCard.base_def || !guaranteedCard.base_price;
     if (needsFallback) {
       const fallbackStats = generateFallbackStats(guaranteedCard.rarity, {
@@ -1315,7 +1291,6 @@ async function generatePackCards(pack: any, userId: number) {
     });
   }
   
-  // Batch create all cards at once
   const createdCards = await prisma.$transaction(
     cardsToCreate.map((cardData: any) => 
       prisma.userCards.create({
@@ -1358,20 +1333,16 @@ app.get('/api/shop/items', async (req, res) => {
   if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
   
   try {
-    // Get all available shop items from database
     const dbItems = await prisma.shopItem.findMany({
       where: { is_available: true }
     });
     
-    // Separate card slots from regular items
     const regularItems = dbItems.filter(item => 
       item.item_type !== 'CARD_SLOT' && item.item_type !== 'MYTHICAL_CARD'
     );
     
-    // Get random cards for card slots
     const cardSlots = [];
     
-    // For each rarity tier, get a random card
     const rarities = ['COMMON', 'UNCOMMON', 'SPARSE', 'RARE', 'UBER_RARE'];
     for (const rarity of rarities) {
       const cards = await prisma.cardTemplates.findMany({
@@ -1379,41 +1350,55 @@ app.get('/api/shop/items', async (req, res) => {
       });
       if (cards.length > 0) {
         const randomCard = cards[Math.floor(Math.random() * cards.length)];
+        // Ensure card has stats before adding to shop
+        const ensuredCard = await ensureCardStats(randomCard);
         cardSlots.push({
-          id: randomCard.id,
-          name: randomCard.name,
-          description: randomCard.description || `${rarity} card`,
+          id: ensuredCard.id,
+          name: ensuredCard.name,
+          description: ensuredCard.description || `${rarity} card`,
           item_type: 'CARD_SLOT',
-          reference_id: randomCard.id,
-          price: (randomCard.base_price || 1) * 2,
-          image_url: randomCard.image_url,
+          reference_id: ensuredCard.id,
+          price: (ensuredCard.base_price || 1) * 2,
+          image_url: ensuredCard.image_url,
           rarity: rarity,
-          is_available: true
+          is_available: true,
+          base_hp: ensuredCard.base_hp,
+          base_atk: ensuredCard.base_atk,
+          base_def: ensuredCard.base_def,
+          base_price: ensuredCard.base_price,
+          series: ensuredCard.series,
+          type: ensuredCard.type 
         });
       }
     }
     
-    // Get random mythical card - ONLY if exists
     const mythicalCards = await prisma.cardTemplates.findMany({
       where: { rarity: 'MYTHICAL' as Rarity }
     });
     let mythicalSlot = null;
     if (mythicalCards.length > 0) {
       const randomMythical = mythicalCards[Math.floor(Math.random() * mythicalCards.length)];
+      // Ensure mythical card has stats
+      const ensuredMythical = await ensureCardStats(randomMythical);
       mythicalSlot = {
-        id: randomMythical.id,
-        name: randomMythical.name,
-        description: randomMythical.description || 'Mythical card',
+        id: ensuredMythical.id,
+        name: ensuredMythical.name,
+        description: ensuredMythical.description || 'Mythical card',
         item_type: 'MYTHICAL_CARD',
-        reference_id: randomMythical.id,
-        price: (randomMythical.base_price || 20) * 2,
-        image_url: randomMythical.image_url,
+        reference_id: ensuredMythical.id,
+        price: (ensuredMythical.base_price || 20) * 2,
+        image_url: ensuredMythical.image_url,
         rarity: 'MYTHICAL',
-        is_available: true
+        is_available: true,
+        base_hp: ensuredMythical.base_hp,
+        base_atk: ensuredMythical.base_atk,
+        base_def: ensuredMythical.base_def,
+        base_price: ensuredMythical.base_price,
+        series: ensuredMythical.series,
+        type: ensuredMythical.type 
       };
     }
     
-    // Combine all items - only add mythicalSlot if it exists
     const allItems = [...regularItems, ...cardSlots];
     if (mythicalSlot) {
       allItems.push(mythicalSlot);
@@ -1440,16 +1425,9 @@ app.post('/api/shop/purchase', async (req, res) => {
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    // Get shop item to check if it's one-time
-    const shopItem = await prisma.shopItem.findUnique({
-      where: { id: itemId }
-    });
+    const oneTimeSlots = [1, 9, 10, 11, 12];
+    const isOneTime = oneTimeSlots.includes(slotId);
     
-    const isOneTime = shopItem?.item_type === 'ONE_TIME_PACK' || 
-                      shopItem?.item_type === 'MYTHICAL_CARD' || 
-                      shopItem?.item_type === 'ITEM_SLOT';
-    
-    // For one-time items, check if already purchased today
     if (isOneTime) {
       const existingPurchase = await prisma.shopPurchase.findFirst({
         where: {
@@ -1469,7 +1447,6 @@ app.post('/api/shop/purchase', async (req, res) => {
     
     let reward = null;
     
-    // Check if it's a card
     const cardTemplate = await prisma.cardTemplates.findUnique({
       where: { id: itemId }
     });
@@ -1485,7 +1462,13 @@ app.post('/api/shop/purchase', async (req, res) => {
         include: { cardTemplate: true }
       });
       reward = { type: 'card', card: newCard };
-    } else if (shopItem) {
+    } else {
+      const shopItem = await prisma.shopItem.findUnique({
+        where: { id: itemId, is_available: true }
+      });
+      
+      if (!shopItem) return res.status(404).json({ error: 'Item not found' });
+      
       switch (shopItem.item_type) {
         case 'ONE_TIME_PACK':
         case 'MULTI_BUY_PACK':
@@ -1523,8 +1506,7 @@ app.post('/api/shop/purchase', async (req, res) => {
           break;
           
         default:
-          // For CARD_SLOT and MYTHICAL_CARD, they're handled above
-          break;
+          return res.status(400).json({ error: 'Unknown item type' });
       }
     }
     
@@ -1532,29 +1514,29 @@ app.post('/api/shop/purchase', async (req, res) => {
       return res.status(500).json({ error: 'Failed to generate reward' });
     }
     
-    // Deduct currency and record purchase
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: user.id },
-        data: { currency: { decrement: price } }
-      }),
-      prisma.userStats.update({
-        where: { user_id: user.id },
-        data: { 
-          purchases_made: { increment: 1 },
-          total_currency_spent: { increment: price }
-        }
-      }),
-      // Only record purchase for one-time items
-      ...(isOneTime ? [prisma.shopPurchase.create({
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { currency: { decrement: price } }
+    });
+    
+    await prisma.userStats.update({
+      where: { user_id: user.id },
+      data: { 
+        purchases_made: { increment: 1 },
+        total_currency_spent: { increment: price }
+      }
+    });
+    
+    if (isOneTime) {
+      await prisma.shopPurchase.create({
         data: {
           user_id: user.id,
           slot_id: slotId,
           price_paid: price,
           item_id: itemId
         }
-      })] : [])
-    ]);
+      });
+    }
     
     await checkAndUpdateAchievements(user.id, Condition.PURCHASES_MADE);
     
@@ -1566,7 +1548,6 @@ app.post('/api/shop/purchase', async (req, res) => {
   }
 });
 
-// Get user's purchased slots (for one-time items)
 app.get('/api/shop/purchases', async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -1582,7 +1563,7 @@ app.get('/api/shop/purchases', async (req, res) => {
     where: { user_id: user.id },
     select: { slot_id: true }
   });
-  
+
   res.json({ purchasedSlots: purchases.map(p => p.slot_id) });
 });
 
@@ -1614,7 +1595,6 @@ app.post('/api/inventory/sell', async (req, res) => {
     let sellPrice = 0;
     let itemName = '';
     
-    // Handle different item types
     if (inventoryItem.item_type === 'PACK') {
       const pack = await prisma.pack.findUnique({
         where: { id: inventoryItem.reference_id }
@@ -1622,7 +1602,6 @@ app.post('/api/inventory/sell', async (req, res) => {
       if (!pack) {
         return res.status(404).json({ error: 'Pack not found' });
       }
-      // Sell pack for 80% of its price
       sellPrice = pack.price * 0.8;
       itemName = pack.name;
     } 
@@ -1636,7 +1615,6 @@ app.post('/api/inventory/sell', async (req, res) => {
       if (!item.can_sell) {
         return res.status(400).json({ error: 'This item cannot be sold' });
       }
-      // Sell item for 50% of its price
       sellPrice = item.price * 0.5;
       itemName = item.name;
     }
@@ -1644,7 +1622,6 @@ app.post('/api/inventory/sell', async (req, res) => {
       return res.status(400).json({ error: 'Unknown item type' });
     }
     
-    // Delete or decrement item
     if (inventoryItem.quantity === 1) {
       await prisma.userInventory.delete({
         where: { id: inventoryId }
@@ -1656,7 +1633,6 @@ app.post('/api/inventory/sell', async (req, res) => {
       });
     }
     
-    // Add currency to user
     await updateCurrency(user.id, sellPrice, 'gain');
     
     res.json({ success: true, sellPrice, itemName });
@@ -1693,7 +1669,6 @@ app.post('/api/user/check-completion', async (req, res) => {
   
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  // Check if already rewarded
   const existingReward = await prisma.userCardCompletion.findUnique({
     where: {
       user_id_card_template_id: {
@@ -1707,7 +1682,6 @@ app.post('/api/user/check-completion', async (req, res) => {
     return res.json({ alreadyRewarded: true });
   }
   
-  // Check if user has all 20 variants
   const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
   const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
   
@@ -1731,10 +1705,8 @@ app.post('/api/user/check-completion', async (req, res) => {
   }
   
   if (hasAll) {
-    // Award 100 currency
     await updateCurrency(user.id, 100, 'gain');
     
-    // Record the completion
     await prisma.userCardCompletion.create({
       data: {
         user_id: user.id,
@@ -1761,7 +1733,6 @@ app.post('/api/heartbeat', async (req, res) => {
   }
   lastHeartbeat.set(key, true);
   
-  // Clean old entries
   setTimeout(() => lastHeartbeat.delete(key), 65000);
   
   const user = await prisma.user.findUnique({
@@ -1794,7 +1765,6 @@ app.post('/api/cards/favorite', async (req, res) => {
   
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  // Update all cards with this template_id to have the same favorite status
   await prisma.userCards.updateMany({
     where: {
       user_id: user.id,

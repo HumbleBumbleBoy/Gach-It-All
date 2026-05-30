@@ -10,19 +10,11 @@ export default function Settings() {
   });
   const [isResetting, setIsResetting] = useState(false);
   const [isClearingAll, setIsClearingAll] = useState(false);
-  const [cookiesAccepted, _setCookiesAccepted] = useState(() => {
-    const saved = localStorage.getItem('cookiesAccepted');
-    return saved !== null ? saved === 'true' : true;
-  });
 
   useEffect(() => {
     localStorage.setItem('soundVolume', volume.toString());
     window.dispatchEvent(new CustomEvent('soundVolumeChanged', { detail: { volume } }));
   }, [volume]);
-
-  useEffect(() => {
-    localStorage.setItem('cookiesAccepted', String(cookiesAccepted));
-  }, [cookiesAccepted]);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setVolume(parseFloat(e.target.value));

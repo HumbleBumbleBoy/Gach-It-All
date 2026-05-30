@@ -17,11 +17,12 @@ interface ShopItem {
   finalPrice?: number;
   qualityMult?: number;
   enhancementMult?: number;
-}
-
-interface CardQuality {
-  quality: string;
-  enhancement: string;
+  base_hp?: number;
+  base_atk?: number;
+  base_def?: number;
+  base_price?: number;
+  series?: string;
+  type?: string; 
 }
 
 // Fixed shop slots configuration
@@ -34,7 +35,7 @@ const SHOP_SLOTS = [
   { id: 6, type: 'CARD_SLOT', title: 'Sparse Card', description: 'Random sparse card', section: 'row2', rarity: 'SPARSE', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
   { id: 7, type: 'CARD_SLOT', title: 'Rare Card', description: 'Random rare card', section: 'row2', rarity: 'RARE', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
   { id: 8, type: 'CARD_SLOT', title: 'Uber Rare Card', description: 'Random uber rare card', section: 'row2', rarity: 'UBER_RARE', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
-  { id: 9, type: 'MYTHICAL_CARD', title: 'Mythic Card', description: 'Random mythical card', section: 'row2', refreshDaily: true, limitOne: true, highlighted: true, canBuyMultiple: false },
+  { id: 9, type: 'MYTHICAL_CARD', title: 'Mythic Card', description: 'Random mythical card', section: 'row2', rarity: 'MYTHICAL', refreshDaily: true, limitOne: true, highlighted: true, canBuyMultiple: false },
   { id: 10, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, limitOne: true, canBuyMultiple: false },
   { id: 11, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, limitOne: true, canBuyMultiple: false },
   { id: 12, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, limitOne: true, canBuyMultiple: false },
@@ -75,8 +76,9 @@ export default function Shop() {
   const [existingCardIds, setExistingCardIds] = useState<Set<number>>(new Set());
   const [purchasedSlots, setPurchasedSlots] = useState<Set<number>>(new Set());
   const [slotItems, setSlotItems] = useState<Map<number, ShopItem>>(new Map());
-  const [slotQualities, _setSlotQualities] = useState<Map<number, CardQuality>>(new Map());
   const [timeUntilRefresh, setTimeUntilRefresh] = useState<string>('');
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [purchasedSlotsLoaded, setPurchasedSlotsLoaded] = useState(false);
 
   useEffect(() => {
     if (isSignedIn) {
@@ -98,15 +100,6 @@ export default function Shop() {
       });
     }
   }, [slotItems]);
-
-  useEffect(() => {
-    if (slotQualities.size > 0) {
-      const toSave: Record<number, CardQuality> = {};
-      slotQualities.forEach((value, key) => {
-        toSave[key] = value;
-      });
-    }
-  }, [slotQualities]);
 
   const calculateRefreshTime = () => {
     const now = new Date();
@@ -135,8 +128,10 @@ export default function Shop() {
     try {
       const data = await apiClient.getPurchasedSlots();
       setPurchasedSlots(new Set(data.purchasedSlots || []));
+      setPurchasedSlotsLoaded(true);
     } catch (error) {
       console.error('Failed to load purchased history:', error);
+      setPurchasedSlotsLoaded(true);
     }
   };
 
@@ -186,7 +181,6 @@ export default function Shop() {
             ? availableItems[0]
             : availableItems[Math.floor(Math.random() * availableItems.length)];
           
-          // For card slots, generate the full card with random quality and enhancement
           if (slot.type === 'CARD_SLOT' || slot.type === 'MYTHICAL_CARD') {
             const qualities = slot.type === 'MYTHICAL_CARD' 
               ? ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP']
@@ -226,6 +220,15 @@ export default function Shop() {
       }
       
       setSlotItems(newSlotItems);
+      
+      // SAVE TO LOCALSTORAGE
+      const toSave: Record<number, ShopItem> = {};
+      newSlotItems.forEach((value, key) => {
+        toSave[key] = value;
+      });
+      localStorage.setItem('shopItems', JSON.stringify(toSave));
+      localStorage.setItem('shopLastRefresh', today);
+      
     } catch (error) {
       console.error('Failed to load shop:', error);
     } finally {
@@ -235,12 +238,14 @@ export default function Shop() {
 
   const purchaseItem = async (slot: typeof SHOP_SLOTS[0], item: ShopItem) => {
     if (!isSignedIn) {
-      alert('Please sign in first!');
+      setToast({ show: true, message: 'Please sign in first!', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
       return;
     }
     
     if (slot.limitOne && purchasedSlots.has(slot.id)) {
-      alert('You already purchased this item');
+      setToast({ show: true, message: 'You already purchased this item!', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
       return;
     }
     
@@ -256,15 +261,24 @@ export default function Shop() {
       });
       
       if (result.success) {
+        let message = '';
+        if (slot.limitOne) {
+          const newPurchased = new Set(purchasedSlots);
+          newPurchased.add(slot.id);
+          setPurchasedSlots(newPurchased);
+        }
         if (result.reward?.type === 'pack') {
-          alert(`Pack purchased! It has been added to your inventory.`);
+          message = `Pack purchased! Added to inventory.`;
         } else if (result.reward?.type === 'card') {
           const qualityText = item.quality ? item.quality.toLowerCase() : 'unknown';
           const enhancementText = item.enhancement ? item.enhancement.toLowerCase() : 'unknown';
-          alert(`You received: ${result.reward.card.cardTemplate.name} (${qualityText}, ${enhancementText})`);
+          message = `Received: ${result.reward.card.cardTemplate.name} (${qualityText}, ${enhancementText})`;
         } else if (result.reward?.type === 'item') {
-          alert(`You received: ${result.reward.item.name}`);
+          message = `Received: ${result.reward.item.name}`;
         }
+        
+        setToast({ show: true, message, type: 'success' });
+        setTimeout(() => setToast(null), 4000);
         
         if (slot.limitOne) {
           const newPurchased = new Set(purchasedSlots);
@@ -279,11 +293,13 @@ export default function Shop() {
         window.dispatchEvent(new Event('currency-updated'));
         window.dispatchEvent(new CustomEvent('achievements-updated'));
       } else {
-        alert(result.error || 'Purchase failed');
+        setToast({ show: true, message: result.error || 'Purchase failed', type: 'error' });
+        setTimeout(() => setToast(null), 3000);
       }
     } catch (error) {
       console.error('Purchase failed:', error);
-      alert('Purchase failed');
+      setToast({ show: true, message: 'Purchase failed!', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setPurchasing(null);
     }
@@ -301,7 +317,6 @@ export default function Shop() {
       if (availableItems.length > 0) {
         const newCard = availableItems[Math.floor(Math.random() * availableItems.length)];
         
-        // Generate new random quality and enhancement for the refreshed card
         const qualities = slot.type === 'MYTHICAL_CARD' 
           ? ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP']
           : ['TARNISHED', 'POOR', 'REGULAR', 'GOOD'];
@@ -342,7 +357,8 @@ export default function Shop() {
           newMap.forEach((value, key) => {
             toSave[key] = value;
           });
-  
+          localStorage.setItem('shopItems', JSON.stringify(toSave));
+          
           return newMap;
         });
       }
@@ -361,18 +377,49 @@ export default function Shop() {
   });
   const row3Slots = SHOP_SLOTS.filter(s => s.section === 'row3');
 
+  const Toast = () => {
+    if (!toast?.show) return null;
+    
+    return (
+      <div className="fixed bottom-4 right-4 z-50 animate slide-in-from-right duration-500">
+        <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 min-w-75 ${
+          toast.type === 'success' ? 'bg-green-500' : 
+          toast.type === 'error' ? 'bg-red-600' : 
+          'bg-blue-600'
+        }`}>
+          {toast.type === 'success' && (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+          {toast.type === 'error' && (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+          {toast.type === 'info' && (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )}
+          <p className="text-white text-sm">{toast.message}</p>
+        </div>
+      </div>
+    );
+  };
+
   const renderSlot = (slot: typeof SHOP_SLOTS[0], isHighlighted = false) => {
     const item = slotItems.get(slot.id) as ShopItem | undefined;
     const isPurchased = slot.limitOne && purchasedSlots.has(slot.id);
     const titleColor = slot.rarity ? rarityColors[slot.rarity] || 'text-white' : 'text-white';
     
-    if (!item) {
-      return (
-        <div key={slot.id} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <div className="text-center text-gray-400">Loading...</div>
-        </div>
-      );
-    }
+    if (!item || !purchasedSlotsLoaded) {
+        return (
+          <div key={slot.id} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div className="text-center text-gray-400">Loading...</div>
+          </div>
+        );
+      }
     
     const isCard = slot.type === 'CARD_SLOT' || slot.type === 'MYTHICAL_CARD';
     const displayPrice = isCard && item.finalPrice ? item.finalPrice : item.price;
@@ -380,6 +427,7 @@ export default function Shop() {
     const enhancement = isCard && item.enhancement ? item.enhancement : null;
     const qualityMult = isCard && item.qualityMult ? item.qualityMult : null;
     const enhancementMult = isCard && item.enhancementMult ? item.enhancementMult : null;
+    const rarityColor = item.rarity ? rarityColors[item.rarity] || 'text-gray-400' : 'text-gray-400';
     
     return (
       <div 
@@ -402,12 +450,12 @@ export default function Shop() {
               className="w-32 h-32 object-contain mx-auto my-4 cursor-pointer"
             />
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2 bg-gray-900 text-white rounded-lg shadow-xl border border-gray-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 min-w-50">
-              <p className="font-semibold text-sm">{item.name || slot.title}</p>
+              <p className={`font-semibold text-sm ${rarityColor}`}>{item.name || slot.title}</p>
               <p className="text-gray-400 text-xs mt-1 line-clamp-10">{item.description}</p>
               <div className="mt-2 pt-2 border-t border-gray-700">
                 {isCard && quality && enhancement ? (
-                  <>
-                    <p className="text-xs">
+                  <>                    
+                    <p className="text-xs mt-1">
                       <span className="text-gray-400">Quality:</span>{' '}
                       <span className="text-blue-400 font-semibold">{quality.toLowerCase()}</span>
                       <span className="text-gray-500 text-[10px] ml-1">({qualityMult}x)</span>
@@ -416,6 +464,18 @@ export default function Shop() {
                       <span className="text-gray-400">Enhancement:</span>{' '}
                       <span className="text-purple-400 font-semibold">{enhancement.toLowerCase()}</span>
                       <span className="text-gray-500 text-[10px] ml-1">({enhancementMult}x)</span>
+                    </p>
+                    {(item.base_hp !== undefined || item.base_atk !== undefined || item.base_def !== undefined) && (
+                      <p className={`text-xs mt-1 ${rarityColor}`}>
+                        <span>{item.base_hp || '?'} HP</span> |{' '}
+                        <span>{item.base_def || '?'} DEF</span> |{' '}
+                        <span>{item.base_atk || '?'} ATK</span>
+                      </p>
+                    )}
+                    <p className={`text-[10px] mt-1 ${rarityColor}`}>
+                      {item.series && <span>{item.series}</span>}
+                      {item.series && item.type && <span> | </span>}
+                      {item.type && <span>{item.type}</span>}
                     </p>
                   </>
                 ) : (
@@ -506,6 +566,8 @@ export default function Shop() {
         }}
         existingCardIds={existingCardIds}
       />
+
+      <Toast />
     </>
   );
 }
