@@ -287,7 +287,7 @@ export default function Navbar() {
                 <Link to="/">
                   <img
                     alt="Gatch It All!"
-                    src="./public/favicon.svg"
+                    src="/favicon.svg"
                     className="h-12 w-auto"
                   />
                 </Link>
