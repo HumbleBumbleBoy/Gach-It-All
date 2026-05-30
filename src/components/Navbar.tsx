@@ -287,8 +287,8 @@ export default function Navbar() {
                 <Link to="/">
                   <img
                     alt="Gatch It All!"
-                    src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=500"
-                    className="h-8 w-auto"
+                    src="./public/favicon.svg"
+                    className="h-12 w-auto"
                   />
                 </Link>
               </div>
