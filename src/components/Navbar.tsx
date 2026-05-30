@@ -31,10 +31,33 @@ export default function Navbar() {
     // Load mute preference from localStorage
     return localStorage.getItem('soundMuted') === 'true';
   });
-  const [sortBy, setSortBy] = useState<'default' | 'reward' | 'progress' | 'name'>('default');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [hideCompleted, setHideCompleted] = useState(false);
   const [userStatus, setUserStatus] = useState<string>('STANDARD');
+  const [sortBy, setSortBy] = useState<'default' | 'reward' | 'progress' | 'name'>(() => {
+    const saved = localStorage.getItem('achievementsSortBy');
+    return (saved && ['default', 'reward', 'progress', 'name'].includes(saved)) ? saved as any : 'default';
+  });
+
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => {
+    const saved = localStorage.getItem('achievementsSortDirection');
+    return (saved === 'asc' || saved === 'desc') ? saved : 'asc';
+  });
+
+  const [hideCompleted, setHideCompleted] = useState(() => {
+    const saved = localStorage.getItem('achievementsHideCompleted');
+    return saved === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('achievementsSortBy', sortBy);
+  }, [sortBy]);
+
+  useEffect(() => {
+    localStorage.setItem('achievementsSortDirection', sortDirection);
+  }, [sortDirection]);
+
+  useEffect(() => {
+    localStorage.setItem('achievementsHideCompleted', String(hideCompleted));
+  }, [hideCompleted]);
 
   // Save mute preference to localStorage when it changes
   useEffect(() => {
@@ -46,7 +69,7 @@ export default function Navbar() {
   const toggleMute = () => {
     setIsMuted(!isMuted);
   };
-  
+
   const getStatusBorderColor = () => {
     switch (userStatus) {
       case 'SPECIAL':

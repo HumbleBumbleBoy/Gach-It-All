@@ -1,6 +1,6 @@
 import Navbar from '../../components/Navbar';
 import { useUser } from '@clerk/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { apiClient } from '../../../lib/api';
 import { ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 
@@ -95,20 +95,59 @@ export default function Collection() {
   const [rootCards, setRootCards] = useState<any[]>([]);
   const [selectedRootCard, setSelectedRootCard] = useState<any>(null);
   const [selectedVariants, setSelectedVariants] = useState<any[]>([]);
-  const [sortBy, setSortBy] = useState<'rarity' | 'name' | 'base_price' | 'quantity' | 'completion' | 'base_hp' | 'base_def' | 'base_atk' >('rarity');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [viewMode, setViewMode] = useState<'your' | 'entire'>('entire');
   const [selectedCardInfo, setSelectedCardInfo] = useState<any>(null);
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
-  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [totalValue, setTotalValue] = useState(0);
-  const [variantSortDirection, setVariantSortDirection] = useState<'asc' | 'desc'>('desc');
   const [rarityCounts, setRarityCounts] = useState<Record<string, number>>({});
   const [totalCardsPerRarity, setTotalCardsPerRarity] = useState<Record<string, number>>({});
-  const [priorityEnhancements, setPriorityEnhancements] = useState(false);
   const [completedRewardsGiven, setCompletedRewardsGiven] = useState<Set<number>>(new Set());
   const [completedCardsCount, setCompletedCardsCount] = useState(0);
   const [completedCardsPerRarity, setCompletedCardsPerRarity] = useState<Record<string, number>>({});
+    const [sortBy, setSortBy] = useState<'rarity' | 'name' | 'base_price' | 'quantity' | 'completion' | 'base_hp' | 'base_def' | 'base_atk'>(() => {
+    const saved = localStorage.getItem('collectionSortBy');
+    return (saved && ['rarity', 'name', 'base_price', 'quantity', 'completion', 'base_hp', 'base_def', 'base_atk'].includes(saved)) ? saved as any : 'rarity';
+  });
+
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => {
+    const saved = localStorage.getItem('collectionSortDirection');
+    return (saved === 'asc' || saved === 'desc') ? saved : 'asc';
+  });
+
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(() => {
+    const saved = localStorage.getItem('collectionShowOnlyFavorites');
+    return saved === 'true';
+  });
+
+  const [priorityEnhancements, setPriorityEnhancements] = useState(() => {
+    const saved = localStorage.getItem('collectionPriorityEnhancements');
+    return saved === 'true';
+  });
+
+  const [variantSortDirection, setVariantSortDirection] = useState<'asc' | 'desc'>(() => {
+    const saved = localStorage.getItem('collectionVariantSortDirection');
+    return (saved === 'asc' || saved === 'desc') ? saved : 'desc';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('collectionSortBy', sortBy);
+  }, [sortBy]);
+
+  useEffect(() => {
+    localStorage.setItem('collectionSortDirection', sortDirection);
+  }, [sortDirection]);
+
+  useEffect(() => {
+    localStorage.setItem('collectionShowOnlyFavorites', String(showOnlyFavorites));
+  }, [showOnlyFavorites]);
+
+  useEffect(() => {
+    localStorage.setItem('collectionPriorityEnhancements', String(priorityEnhancements));
+  }, [priorityEnhancements]);
+
+  useEffect(() => {
+    localStorage.setItem('collectionVariantSortDirection', variantSortDirection);
+  }, [variantSortDirection]);
 
   // Initialize totals from allCards
   useEffect(() => {
