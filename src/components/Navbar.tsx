@@ -94,19 +94,22 @@ export default function Navbar() {
     if (!isSignedIn) return;
     
     let eventSource: EventSource | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 3;
     
     const connect = () => {
       try {
         eventSource = new EventSource('/api/events/achievements');
         
         eventSource.onopen = () => {
-          console.log('SSE connected');
+          reconnectAttempts = 0; // Reset on successful connection
         };
         
         eventSource.onmessage = async (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log('Achievement unlocked:', data);
+            // Don't log to console in production
             setToast({ show: true, achievement: data.achievement, reward: data.reward });
             
             const [newCurrency, newUserAchievements] = await Promise.all([
@@ -119,27 +122,30 @@ export default function Navbar() {
             
             setTimeout(() => setToast(null), 5000);
           } catch (err) {
-            console.error('Failed to parse SSE message:', err);
+            // Silent fail
           }
         };
         
-        eventSource.onerror = (err) => {
-          console.error('SSE error:', err);
+        eventSource.onerror = () => {
           eventSource?.close();
-          // Retry after 10 seconds instead of 5
-          setTimeout(connect, 10000);
+          
+          if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            const delay = 30000; // 30 seconds - much longer
+            reconnectTimeout = setTimeout(connect, delay);
+            reconnectAttempts++;
+          }
         };
+        
       } catch (err) {
-        console.error('Failed to create EventSource:', err);
+        // Silent fail
       }
     };
     
     connect();
     
     return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
+      if (eventSource) eventSource.close();
+      clearTimeout(reconnectTimeout);
     };
   }, [isSignedIn]);
 

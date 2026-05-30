@@ -11,8 +11,7 @@ function App() {
   useEffect(() => {
     if (isSignedIn && user) {
       apiClient.userLogin()
-        .then(data => console.log('Backend response:', data))
-        .catch(err => console.error('Error calling backend:', err));
+        .catch(err => console.warn('Login sync failed', err));
     }
   }, [isSignedIn, user]);
 
