@@ -10,6 +10,8 @@ interface Pack {
   image_url: string;
 }
 
+let lastCacheRefresh = 0;
+
 export default function Gacha() {
   const { isSignedIn } = useUser();
   const [isOpening, setIsOpening] = useState(false);
@@ -24,6 +26,18 @@ export default function Gacha() {
   const isOpeningRef = useRef(false);
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem('soundMuted') === 'true');
 
+  const CACHE_REFRESH_COOLDOWN = 300000;
+  useEffect(() => {
+    if (isSignedIn) {
+      const now = Date.now();
+      if (now - lastCacheRefresh > CACHE_REFRESH_COOLDOWN) {
+        lastCacheRefresh = now;
+        apiClient.refreshCardCache().catch(err => console.warn('Failed to refresh card cache:', err));
+      }
+      loadExistingCards();
+    }
+  }, [isSignedIn]);
+
   useEffect(() => {
     const handleMuteChange = (event: CustomEvent) => {
       setIsMuted(event.detail.isMuted);
@@ -32,12 +46,6 @@ export default function Gacha() {
     window.addEventListener('soundMuteChanged', handleMuteChange as EventListener);
     return () => window.removeEventListener('soundMuteChanged', handleMuteChange as EventListener);
   }, []);
-
-  useEffect(() => {
-    if (isSignedIn) {
-      loadExistingCards();
-    }
-  }, [isSignedIn]);
 
   useEffect(() => {
     fetchFreePack();

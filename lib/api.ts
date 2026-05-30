@@ -83,19 +83,17 @@ export const apiClient = {
   },
 
   async getCurrency() {
-    return dedupeRequest('currency', async () => {
-      try {
-        const response = await fetchWithTimeout(`/api/user/currency`, {
-          credentials: 'include',
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        return data;
-      } catch (error) {
-        console.warn('Failed to fetch currency');
-        return { currency: 0 };
-      }
-    }, true); // cache for 30 seconds
+    try {
+      const response = await fetchWithTimeout(`/api/user/currency`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.warn('Failed to fetch currency');
+      return { currency: 0 };
+    }
   },
 
   async getInventory() {
@@ -166,7 +164,7 @@ export const apiClient = {
   },
 
   async openPack(packId: number) {
-    const response = await fetchWithTimeout(`/api/gacha/pack`, {
+    const response = await fetch(`/api/gacha/pack`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -258,6 +256,14 @@ export const apiClient = {
 
   async getPurchasedSlots() {
     const response = await fetchWithTimeout(`/api/shop/purchases`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
+
+  async refreshCardCache() {
+    const response = await fetch(`/api/refresh-card-cache`, {
+      method: 'POST',
       credentials: 'include',
     });
     return response.json();

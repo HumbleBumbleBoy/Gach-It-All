@@ -46,15 +46,7 @@ export default function Navbar() {
   const toggleMute = () => {
     setIsMuted(!isMuted);
   };
-
-  useEffect(() => {
-    if (isSignedIn && user) {
-      apiClient.getUserStatus()
-        .then(data => setUserStatus(data.status))
-        .catch(err => console.error('Failed to fetch user status:', err));
-    }
-  }, [isSignedIn, user]);
-
+  
   const getStatusBorderColor = () => {
     switch (userStatus) {
       case 'SPECIAL':
@@ -79,6 +71,9 @@ export default function Navbar() {
       apiClient.getUserAchievements()
         .then(data => setUserAchievements(data.userAchievements || []))
         .catch(err => console.error('Failed to fetch user achievements:', err));
+      apiClient.getUserStatus()
+        .then(data => setUserStatus(data.status))
+        .catch(err => console.error('Failed to fetch user status:', err));
 
       const interval = setInterval(() => {
         apiClient.getUserAchievements()

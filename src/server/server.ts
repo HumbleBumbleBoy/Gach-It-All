@@ -12,7 +12,11 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not set in environment variables");
 }
 const adapter = new PrismaPg({ connectionString });
-const prisma = new PrismaClient({ adapter });
+
+const prisma = new PrismaClient({
+  adapter,
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+});
 
 import express from 'express';
 import cors from 'cors';
@@ -138,10 +142,21 @@ async function updateCurrency(userId: number, amount: number, type: 'gain' | 'sp
   }
 }
 
+async function getAchievementsByCondition(condition: Condition): Promise<any[]> {
+  const now = Date.now();
+  if (!cachedAchievements.has(condition) || (now - achievementsLastFetch) > ACHIEVEMENTS_CACHE_TTL) {
+    const achievements = await prisma.achievement.findMany({
+      where: { condition: condition }
+    });
+    cachedAchievements.set(condition, achievements);
+    achievementsLastFetch = now;
+  }
+  return cachedAchievements.get(condition)!;
+}
+
 async function checkAndUpdateAchievements(userId: number, triggerCondition: Condition) {
-  const achievements = await prisma.achievement.findMany({
-    where: { condition: triggerCondition }
-  });
+  const achievements = await getAchievementsByCondition(triggerCondition);
+  if (achievements.length === 0) return;
   
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -150,9 +165,27 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
   
   if (!user || !user.userStats) return;
   
+  // Batch get existing user achievements
+  const existingAchievements = await prisma.userAchievement.findMany({
+    where: {
+      user_id: userId,
+      achievement_id: { in: achievements.map(a => a.id) }
+    }
+  });
+  const existingMap = new Map(existingAchievements.map(ea => [ea.achievement_id, ea]));
+
+  let enhancedCardsCount = 0;
+  let needsEnhancedCards = achievements.some(a => a.condition === Condition.ENHANCED_CARDS);
+  if (needsEnhancedCards) {
+    enhancedCardsCount = await prisma.userCards.count({
+      where: { user_id: userId, enhancement: { not: 'BASIC' } }
+    });
+  }
+  
+  // Calculate all current values first
+  const currentValues = new Map<number, number>();
   for (const ach of achievements) {
     let currentValue: number = 0;
-    let targetValue: number = ach.value_int ?? ach.value_float ?? 0;
     
     switch (ach.condition) {
       case Condition.WINS:
@@ -189,17 +222,52 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
         currentValue = user.userStats.purchases_made;
         break;
       case Condition.ENHANCED_CARDS:
-        const enhancedCards = await prisma.userCards.count({
-          where: { user_id: userId, enhancement: { not: 'BASIC' } }
-        });
-        currentValue = enhancedCards;
+        currentValue = enhancedCardsCount;
         break;
       default:
         currentValue = 0;
     }
-
+    currentValues.set(ach.id, currentValue);
+  }
+  
+  // Batch prepare updates and creates
+  const toUpdate = [];
+  const toCreate = [];
+  
+  for (const ach of achievements) {
+    const currentValue = currentValues.get(ach.id)!;
+    const targetValue = ach.value_int ?? ach.value_float ?? 0;
+    const progress = Math.min(currentValue, targetValue);
+    const existing = existingMap.get(ach.id);
+    
+    if (existing) {
+      if (existing.progress !== progress) {
+        toUpdate.push({ id: existing.id, progress });
+      }
+    } else {
+      toCreate.push({
+        user_id: userId,
+        achievement_id: ach.id,
+        progress: progress
+      });
+    }
+  }
+  
+  // Batch execute updates and creates
+  if (toUpdate.length > 0) {
+    await Promise.all(toUpdate.map(u => 
+      prisma.userAchievement.update({ where: { id: u.id }, data: { progress: u.progress } })
+    ));
+  }
+  if (toCreate.length > 0) {
+    await prisma.userAchievement.createMany({ data: toCreate });
+  }
+  
+  // Check for newly completed achievements and grant rewards
+  for (const ach of achievements) {
+    const currentValue = currentValues.get(ach.id)!;
+    const targetValue = ach.value_int ?? ach.value_float ?? 0;
     let isComplete = false;
-    let progress = Math.min(currentValue, targetValue);
     
     switch (ach.comparator) {
       case Comparator.MORE_THAN:
@@ -219,58 +287,21 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
         break;
     }
     
-    const existing = await prisma.userAchievement.findUnique({
-      where: {
-        user_id_achievement_id: {
-          user_id: userId,
-          achievement_id: ach.id
-        }
-      }
-    });
+    const existing = existingMap.get(ach.id);
     
-    if (existing) {
-      if (existing.progress !== progress) {
-        await prisma.userAchievement.update({
-          where: { id: existing.id },
-          data: { progress: progress }
-        });
-      }
-    } else {
-      await prisma.userAchievement.create({
-        data: {
-          user_id: userId,
-          achievement_id: ach.id,
-          progress: progress
-        }
-      });
-    }
-    
-    const justCompleted = isComplete && (!existing || (existing && !existing.completed_at));
-    
-    if (justCompleted) {
-      const record = existing || await prisma.userAchievement.findUnique({
-        where: {
-          user_id_achievement_id: {
-            user_id: userId,
-            achievement_id: ach.id
-          }
-        }
+    if (isComplete && (!existing || !existing.completed_at)) {
+      await grantReward(userId, ach.reward_type, ach.reward_value);
+      await prisma.userAchievement.update({
+        where: { user_id_achievement_id: { user_id: userId, achievement_id: ach.id } },
+        data: { completed_at: new Date(), progress: 100 }
       });
       
-      if (record && !record.completed_at) {
-        await prisma.userAchievement.update({
-          where: { id: record.id },
-          data: { completed_at: new Date(), progress: 100 }
-        });
-        await grantReward(userId, ach.reward_type, ach.reward_value);
-        
-        const userData = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { clerkId: true }
-        });
-        if (userData) {
-          sendAchievementNotification(userData.clerkId, ach.name, `${ach.reward_type}: ${ach.reward_value}`);
-        }
+      const userData = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { clerkId: true }
+      });
+      if (userData) {
+        sendAchievementNotification(userData.clerkId, ach.name, `${ach.reward_type}: ${ach.reward_value}`);
       }
     }
   }
@@ -384,15 +415,19 @@ function generateFallbackStats(rarity: string, existingStats?: {
 }
 
 let cachedCardTemplates: any[] | null = null;
-let lastCacheTime: number = 0;
-const CACHE_TTL: number = 60000;
+let cacheInitialized = false;
 
 async function getCachedCardTemplates(): Promise<any[]> {
-  const now = Date.now();
-  if (!cachedCardTemplates || (now - lastCacheTime) > CACHE_TTL) {
+  if (!cacheInitialized) {
     cachedCardTemplates = await prisma.cardTemplates.findMany();
-    lastCacheTime = now;
+    cacheInitialized = true;
   }
+  return cachedCardTemplates!;
+}
+
+async function refreshCardCache() {
+  cachedCardTemplates = await prisma.cardTemplates.findMany();
+  cacheInitialized = true;
   return cachedCardTemplates;
 }
 
@@ -605,27 +640,30 @@ app.get('/api/user/inventory', async (req, res) => {
     where: { user_id: user.id }
   });
   
-  const itemsWithDetails = await Promise.all(items.map(async (inv) => {
+  const packIds = items.filter(i => i.item_type === 'PACK').map(i => i.reference_id);
+  const itemIds = items.filter(i => i.item_type === 'ITEM').map(i => i.reference_id);
+  
+  const [packs, shopItems] = await Promise.all([
+    packIds.length > 0 ? prisma.pack.findMany({ where: { id: { in: packIds } } }) : [],
+    itemIds.length > 0 ? prisma.item.findMany({ where: { id: { in: itemIds } } }) : []
+  ]);
+  
+  const packMap = new Map(packs.map(p => [p.id, p]));
+  const itemMap = new Map(shopItems.map(i => [i.id, i]));
+  
+  const itemsWithDetails = items.map(inv => {
     let details = null;
     let sellPrice = 0;
     let canSell = false;
     
     if (inv.item_type === 'ITEM') {
-      details = await prisma.item.findUnique({
-        where: { id: inv.reference_id },
-        select: { name: true, image_url: true, description: true, price: true, can_sell: true }
-      });
+      details = itemMap.get(inv.reference_id);
       if (details) {
         canSell = details.can_sell || false;
-        if (canSell) {
-          sellPrice = details.price * 0.5;
-        }
+        if (canSell) sellPrice = details.price * 0.5;
       }
     } else if (inv.item_type === 'PACK') {
-      details = await prisma.pack.findUnique({
-        where: { id: inv.reference_id },
-        select: { name: true, image_url: true, description: true, price: true }
-      });
+      details = packMap.get(inv.reference_id);
       if (details) {
         canSell = true;
         sellPrice = details.price * 0.8;
@@ -640,14 +678,14 @@ app.get('/api/user/inventory', async (req, res) => {
       sell_price: sellPrice,
       can_sell: canSell
     };
-  }));
+  });
   
   res.json({ items: itemsWithDetails });
 });
 
 app.get('/api/cards', async (_req, res) => {
   try {
-    const cardTemplates = await prisma.cardTemplates.findMany();
+    const cardTemplates = await getCachedCardTemplates();
     res.json({ items: cardTemplates });
   } catch (error) {
     console.error('Error fetching card templates:', error);
@@ -669,8 +707,27 @@ app.get('/api/user/collection', async (req, res) => {
     
     const userCards = await prisma.userCards.findMany({
       where: { user_id: user.id },
-      include: {
-        cardTemplate: true
+      select: {
+        id: true,
+        card_template_id: true,
+        quality: true,
+        enhancement: true,
+        is_favourited: true,
+        cardTemplate: {
+          select: {
+            id: true,
+            name: true,
+            image_url: true,
+            rarity: true,
+            description: true,
+            base_price: true,
+            base_hp: true,
+            base_atk: true,
+            base_def: true,
+            series: true,
+            type: true
+          }
+        }
       }
     });
     
@@ -765,13 +822,6 @@ app.post('/api/user/clear-all-data', async (req, res) => {
   }
 });
 
-app.get('/api/achievements', async (_req, res) => {
-  const achievements = await prisma.achievement.findMany();
-  res.json({ achievements });
-});
-
-const clients = new Map<string, any>();
-
 app.get('/api/events/achievements', (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -782,12 +832,28 @@ app.get('/api/events/achievements', (req, res) => {
     'Connection': 'keep-alive',
   });
   
+  // Send keep-alive every 30 seconds
+  const keepAlive = setInterval(() => {
+    res.write(': keep-alive\n\n');
+  }, 30000);
+  
   clients.set(auth.userId, res);
   
   req.on('close', () => {
+    clearInterval(keepAlive);
     clients.delete(auth.userId);
   });
+  
+  // Auto-disconnect after 5 minutes of inactivity
+  const timeout = setTimeout(() => {
+    res.end();
+    clients.delete(auth.userId);
+  }, 300000);
+  
+  req.on('close', () => clearTimeout(timeout));
 });
+
+const clients = new Map<string, any>();
 
 function sendAchievementNotification(userId: string, achievementName: string, reward: string) {
   const client = clients.get(userId);
@@ -844,6 +910,28 @@ app.post('/api/achievements/check', async (req, res) => {
   await checkAndUpdateAchievements(user.id, condition as Condition);
   
   res.json({ success: true });
+});
+
+let cachedAchievements: Map<Condition, any[]> = new Map();
+let achievementsLastFetch = 0;
+const ACHIEVEMENTS_CACHE_TTL = 300000;
+
+let allAchievementsCache: any[] | null = null;
+let allAchievementsLastFetch = 0;
+const ALL_ACHIEVEMENTS_CACHE_TTL = 300000;
+app.get('/api/achievements', async (_req, res) => {
+  try {
+    const now = Date.now();
+    if (!allAchievementsCache || (now - allAchievementsLastFetch) > ALL_ACHIEVEMENTS_CACHE_TTL) {
+      allAchievementsCache = await prisma.achievement.findMany();
+      allAchievementsLastFetch = now;
+    }
+    // Make sure we always return an array
+    res.json({ achievements: allAchievementsCache || [] });
+  } catch (error) {
+    console.error('Error fetching achievements:', error);
+    res.status(500).json({ error: 'Failed to fetch achievements', achievements: [] });
+  }
 });
 
 app.post('/api/cards/sell', async (req, res) => {
@@ -1342,12 +1430,16 @@ app.get('/api/shop/items', async (req, res) => {
     );
     
     const cardSlots = [];
+    const allCards = await prisma.cardTemplates.findMany();
+    const cardsByRarity = new Map();
+    for (const card of allCards) {
+      if (!cardsByRarity.has(card.rarity)) cardsByRarity.set(card.rarity, []);
+      cardsByRarity.get(card.rarity).push(card);
+    }
     
     const rarities = ['COMMON', 'UNCOMMON', 'SPARSE', 'RARE', 'UBER_RARE'];
     for (const rarity of rarities) {
-      const cards = await prisma.cardTemplates.findMany({
-        where: { rarity: rarity as Rarity }
-      });
+      const cards = cardsByRarity.get(rarity) || []
       if (cards.length > 0) {
         const randomCard = cards[Math.floor(Math.random() * cards.length)];
         // Ensure card has stats before adding to shop
@@ -1720,7 +1812,30 @@ app.post('/api/user/check-completion', async (req, res) => {
   res.json({ notCompleted: true });
 });
 
+app.post('/api/refresh-card-cache', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    await refreshCardCache();
+    res.json({ success: true, message: 'Card cache refreshed', count: cachedCardTemplates?.length });
+  } catch (error) {
+    console.error('Failed to refresh cache:', error);
+    res.status(500).json({ error: 'Failed to refresh cache' });
+  }
+})
+
 const lastHeartbeat = new Map();
+setInterval(() => {
+  const oneHourAgo = Date.now() - 3600000;
+  for (const [key, timestamp] of lastHeartbeat.entries()) {
+    if (timestamp < oneHourAgo) {
+      lastHeartbeat.delete(key);
+    }
+  }
+}, 3600000);
 app.post('/api/heartbeat', async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) {
@@ -1746,7 +1861,7 @@ app.post('/api/heartbeat', async (req, res) => {
       data: { total_play_minutes: { increment: 1 } }
     });
 
-    checkAndUpdateAchievements(user.id, Condition.PLAY_TIME)
+    await checkAndUpdateAchievements(user.id, Condition.PLAY_TIME);
   }
   
   res.json({ ok: true });
@@ -1808,7 +1923,19 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use(express.static(path.join(__dirname, '../../dist')));
+app.use(express.static(path.join(__dirname, '../../dist'), {
+  maxAge: '30d',
+  immutable: true,
+  setHeaders: (res, path) => {
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (path.match(/\.(jpg|jpeg|png|gif|ico|svg|webp)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    } else if (path.match(/\.(mp3|wav)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day for sounds
+    }
+  }
+}));
 
 app.use((_req, res) => {
   res.sendFile(path.join(__dirname, '../../dist/index.html'));

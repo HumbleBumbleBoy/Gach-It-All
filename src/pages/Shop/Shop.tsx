@@ -2,7 +2,6 @@ import Navbar from '../../components/Navbar';
 import { useUser } from '@clerk/react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../../lib/api';
-import PackOpeningModal from '../../components/PackOpeningModal';
 
 interface ShopItem {
   id: number;
@@ -71,9 +70,7 @@ export default function Shop() {
   const { isSignedIn } = useUser();
   const [loading, setLoading] = useState(false);
   const [purchasing, setPurchasing] = useState<number | null>(null);
-  const [showPackModal, setShowPackModal] = useState(false);
-  const [openedCards, setOpenedCards] = useState<any[]>([]);
-  const [existingCardIds, setExistingCardIds] = useState<Set<number>>(new Set());
+  const [_existingCardIds, setExistingCardIds] = useState<Set<number>>(new Set());
   const [purchasedSlots, setPurchasedSlots] = useState<Set<number>>(new Set());
   const [slotItems, setSlotItems] = useState<Map<number, ShopItem>>(new Map());
   const [timeUntilRefresh, setTimeUntilRefresh] = useState<string>('');
@@ -91,15 +88,6 @@ export default function Shop() {
       return () => clearInterval(interval);
     }
   }, [isSignedIn]);
-
-  useEffect(() => {
-    if (slotItems.size > 0) {
-      const toSave: Record<number, ShopItem> = {};
-      slotItems.forEach((value, key) => {
-        toSave[key] = value;
-      });
-    }
-  }, [slotItems]);
 
   const calculateRefreshTime = () => {
     const now = new Date();
@@ -555,17 +543,6 @@ export default function Shop() {
           </div>
         )}
       </main>
-      
-      <PackOpeningModal
-        isOpen={showPackModal}
-        cards={openedCards}
-        onClose={() => {
-          setShowPackModal(false);
-          setOpenedCards([]);
-          loadExistingCards();
-        }}
-        existingCardIds={existingCardIds}
-      />
 
       <Toast />
     </>
