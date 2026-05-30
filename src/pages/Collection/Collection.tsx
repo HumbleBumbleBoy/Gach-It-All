@@ -1241,9 +1241,8 @@ export default function Collection() {
                     ))}
                   </div>
 
-                  {/* Right column - Description panel */}
                   {selectedCardInfo && (
-                    <div className="w-80 border-l border-gray-700 flex flex-col shrink-0 overflow-y-auto max-h-[calc(85vh-200px)]">
+                    <div className="hidden md:block w-80 border-l border-gray-700 flex flex-col shrink-0 overflow-y-auto max-h-[calc(85vh-200px)]">
                       <div className="p-4 border-b border-gray-700 shrink-0">
                         <div className="flex justify-between items-start">
                           <h3 className={`font-bold text-lg ${getRarityStyle(selectedCardInfo.rarity).textColor}`}>
