@@ -1264,7 +1264,6 @@ async function generatePackCards(pack: any, userId: number) {
   const remainingCards = pack.cards_count - guaranteedCards.length;
   const cardsToCreate: any[] = [];
   
-  // Generate regular cards (no achievement checks here)
   for (let i = 0; i < remainingCards; i++) {
     const rarity = determineRarity(pack);
     const cardsOfRarity = availableCards.filter((card: any) => card.rarity === rarity);
@@ -1426,7 +1425,7 @@ async function generatePackCards(pack: any, userId: number) {
     });
   }
   
-  // ONE transaction to create all cards
+  // one stransaction to create all cards
   const createdCards = await prisma.$transaction(
     cardsToCreate.map((cardData: any) => 
       prisma.userCards.create({
