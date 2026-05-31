@@ -183,14 +183,6 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
     }
   });
   const existingMap = new Map(existingAchievements.map(ea => [ea.achievement_id, ea]));
-
-  let enhancedCardsCount = 0;
-  let needsEnhancedCards = achievements.some(a => a.condition === Condition.ENHANCED_CARDS);
-  if (needsEnhancedCards) {
-    enhancedCardsCount = await prisma.userCards.count({
-      where: { user_id: userId, enhancement: { not: 'BASIC' } }
-    });
-  }
   
   // Calculate all current values first
   const currentValues = new Map<number, number>();
