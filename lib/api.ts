@@ -14,7 +14,7 @@ async function dedupeRequest(key: string, requestFn: () => Promise<any>, useCach
     requestCache.delete(key);
   }
   
-  // Check for pending request
+  // Then check for pending request
   if (pendingRequests.has(key)) {
     return pendingRequests.get(key);
   }
@@ -137,7 +137,6 @@ export const apiClient = {
     }, true);
   },
 
-  // Use for critical methods:
   async getUserStats() {
     return retryRequest(async () => {
       const response = await fetchWithTimeout(`/api/user/stats`, {

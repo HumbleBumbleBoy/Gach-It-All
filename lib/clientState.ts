@@ -53,7 +53,7 @@ class ClientState {
   get achievements() { return this._achievements; }
   get isInitialized() { return this._initialized; }
   
-  // Setters with optimistic updates
+  // Setters
   addCurrency(amount: number) {
     this._currency += amount;
     this.notify('currency');

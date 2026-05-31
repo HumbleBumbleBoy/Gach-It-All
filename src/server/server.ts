@@ -1264,7 +1264,7 @@ async function generatePackCards(pack: any, userId: number) {
   const remainingCards = pack.cards_count - guaranteedCards.length;
   const cardsToCreate: any[] = [];
   
-  // Generate regular cards
+  // Generate regular cards (no achievement checks here)
   for (let i = 0; i < remainingCards; i++) {
     const rarity = determineRarity(pack);
     const cardsOfRarity = availableCards.filter((card: any) => card.rarity === rarity);
@@ -1436,7 +1436,6 @@ async function generatePackCards(pack: any, userId: number) {
     )
   );
 
-  // Update unique cards count in ONE query
   const uniqueTemplates = await prisma.userCards.findMany({
     where: { user_id: userId },
     select: { card_template_id: true },
@@ -1448,7 +1447,11 @@ async function generatePackCards(pack: any, userId: number) {
     data: { unique_cards: uniqueTemplates.length }
   });
 
-  // Get all LUCKY_PULL achievements
+  const allExistingAchievements = await prisma.userAchievement.findMany({
+    where: { user_id: userId }
+  });
+  const existingAchievementMap = new Map(allExistingAchievements.map(ea => [ea.achievement_id, ea]));
+
   const rarityCounts = packRarities.reduce<Record<string, number>>((acc, rarity) => {
     acc[rarity] = (acc[rarity] || 0) + 1;
     return acc;
@@ -1458,21 +1461,10 @@ async function generatePackCards(pack: any, userId: number) {
     where: { condition: Condition.LUCKY_PULL }
   });
 
-  // Track granted achievements to avoid duplicates
-  const grantedAchievements = new Set<number>();
-
   for (const achievement of luckyPullAchievements) {
     const targetRarity = achievement.value_string;
     if (targetRarity && rarityCounts[targetRarity] >= 2) {
-      const existing = await prisma.userAchievement.findUnique({
-        where: {
-          user_id_achievement_id: {
-            user_id: userId,
-            achievement_id: achievement.id
-          }
-        }
-      });
-      
+      const existing = existingAchievementMap.get(achievement.id);
       if (!existing || !existing.completed_at) {
         await grantReward(userId, achievement.reward_type, achievement.reward_value);
         await prisma.userAchievement.upsert({
@@ -1490,7 +1482,6 @@ async function generatePackCards(pack: any, userId: number) {
             completed_at: new Date()
           }
         });
-        grantedAchievements.add(achievement.id);
         
         const userData = await prisma.user.findUnique({
           where: { id: userId },
@@ -1502,59 +1493,132 @@ async function generatePackCards(pack: any, userId: number) {
       }
     }
   }
-  
-  // Check card-specific achievements for each card
-  for (const card of createdCards) {
-    const template = card.cardTemplate;
-    const name = template.name || '';
-    const wordCount = name.split(/\s+/).filter((w: string) => w.length > 0).length;
-    const charCount = name.length;
-    
-    if (charCount > 5) {
-      await checkAndUpdateAchievements(userId, Condition.CARD_NAME_LENGTH, template);
-    }
-    if (wordCount > 5) {
-      await checkAndUpdateAchievements(userId, Condition.CARD_NAME_WORDS, template);
-    }
-    
-    await checkAndUpdateAchievements(userId, Condition.CARD_HEALTH, template);
-    await checkAndUpdateAchievements(userId, Condition.CARD_STRENGTH, template);
-    await checkAndUpdateAchievements(userId, Condition.CARD_DEFENCE, template);
-    await checkAndUpdateAchievements(userId, Condition.CARD_RARITY, template);
-  }
-  
-  // Check CARD_SET_COMPLETION for each unique card template
+
   const checkedTemplates = new Set<number>();
   const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
   const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+  
+  // Get all cards the user owns in one query
+  const allUserCards = await prisma.userCards.findMany({
+    where: { user_id: userId },
+    select: { card_template_id: true, quality: true, enhancement: true }
+  });
+  
+  // Group by template
+  const cardsByTemplate = new Map<number, Set<string>>();
+  for (const card of allUserCards) {
+    if (!cardsByTemplate.has(card.card_template_id)) {
+      cardsByTemplate.set(card.card_template_id, new Set());
+    }
+    cardsByTemplate.get(card.card_template_id)!.add(`${card.quality}-${card.enhancement}`);
+  }
   
   for (const card of createdCards) {
     const templateId = card.card_template_id;
     if (checkedTemplates.has(templateId)) continue;
     checkedTemplates.add(templateId);
     
-    let hasAllVariants = true;
-    for (const quality of allQualities) {
-      for (const enhancement of allEnhancements) {
-        const exists = await prisma.userCards.findFirst({
-          where: {
-            user_id: userId,
-            card_template_id: templateId,
-            quality: quality as Quality,
-            enhancement: enhancement as Enhancement
-          },
-          select: { id: true }
-        });
-        if (!exists) {
-          hasAllVariants = false;
-          break;
+    const userVariants = cardsByTemplate.get(templateId) || new Set();
+    const totalVariants = allQualities.length * allEnhancements.length;
+    
+    if (userVariants.size >= totalVariants) {
+      const setCompletionAchievements = await prisma.achievement.findMany({
+        where: { condition: Condition.CARD_SET_COMPLETION }
+      });
+      for (const achievement of setCompletionAchievements) {
+        const existing = existingAchievementMap.get(achievement.id);
+        if (!existing || !existing.completed_at) {
+          await grantReward(userId, achievement.reward_type, achievement.reward_value);
+          await prisma.userAchievement.upsert({
+            where: {
+              user_id_achievement_id: {
+                user_id: userId,
+                achievement_id: achievement.id
+              }
+            },
+            update: { completed_at: new Date(), progress: 100 },
+            create: {
+              user_id: userId,
+              achievement_id: achievement.id,
+              progress: 100,
+              completed_at: new Date()
+            }
+          });
         }
       }
-      if (!hasAllVariants) break;
     }
+  }
+  
+  const allCardAchievements = await prisma.achievement.findMany({
+    where: {
+      condition: {
+        in: ['CARD_HEALTH', 'CARD_STRENGTH', 'CARD_DEFENCE', 'CARD_NAME_LENGTH', 'CARD_NAME_WORDS', 'CARD_RARITY']
+      }
+    }
+  });
+  
+  for (const card of createdCards) {
+    const template = card.cardTemplate;
+    const name = template.name || '';
+    const wordCount = name.split(/\s+/).filter((w: string) => w.length > 0).length;
+    const charCount = name.length;
     
-    if (hasAllVariants) {
-      await checkAndUpdateAchievements(userId, Condition.CARD_SET_COMPLETION);
+    for (const ach of allCardAchievements) {
+      let isComplete = false;
+      let currentValue = 0;
+      let targetValue = ach.value_int ?? ach.value_float ?? 0;
+      
+      switch (ach.condition) {
+        case 'CARD_HEALTH':
+          currentValue = template.base_hp ?? 0;
+          isComplete = currentValue >= targetValue;
+          break;
+        case 'CARD_STRENGTH':
+          currentValue = template.base_atk ?? 0;
+          isComplete = currentValue >= targetValue;
+          break;
+        case 'CARD_DEFENCE':
+          currentValue = template.base_def ?? 0;
+          isComplete = currentValue >= targetValue;
+          break;
+        case 'CARD_NAME_LENGTH':
+          currentValue = charCount;
+          isComplete = currentValue >= targetValue;
+          break;
+        case 'CARD_NAME_WORDS':
+          currentValue = wordCount;
+          isComplete = currentValue >= targetValue;
+          break;
+        case 'CARD_RARITY':
+          if (ach.value_string === template.rarity) {
+            isComplete = true;
+            currentValue = 1;
+            targetValue = 1;
+          }
+          break;
+      }
+      
+      if (isComplete) {
+        const existing = existingAchievementMap.get(ach.id);
+        if (!existing || !existing.completed_at) {
+          await grantReward(userId, ach.reward_type, ach.reward_value);
+          await prisma.userAchievement.upsert({
+            where: {
+              user_id_achievement_id: {
+                user_id: userId,
+                achievement_id: ach.id
+              }
+            },
+            update: { completed_at: new Date(), progress: 100 },
+            create: {
+              user_id: userId,
+              achievement_id: ach.id,
+              progress: 100,
+              completed_at: new Date()
+            }
+          });
+        }
+      }
     }
   }
   

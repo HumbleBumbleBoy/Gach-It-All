@@ -634,7 +634,6 @@ export default function Collection() {
     
     try {
       const cardIds = cardsToSell.map(card => card.id);
-      // Use batch sell - ONE API call instead of many
       const result = await apiClient.batchSellCards(cardIds);
       if (result.success) {
         clientState.addCurrency(result.totalSellPrice);
