@@ -1,3 +1,5 @@
+import { clientState } from "./clientState";
+
 const pendingRequests = new Map();
 const requestCache = new Map();
 const CACHE_TTL = 30000;
@@ -113,7 +115,7 @@ export const apiClient = {
   async getCollection() {
     const response = await fetchWithTimeout(`/api/user/collection`, {
       credentials: 'include',
-    });
+    }, 30000);
     return response.json();
   },
 
@@ -241,7 +243,13 @@ export const apiClient = {
       credentials: 'include',
       body: JSON.stringify(data)
     });
-    return response.json();
+    const result = await response.json();
+  
+    if (result.success) {
+      const price = data.price || 0;
+      clientState.removeCurrency(price);
+    }
+    return result;
   },
 
   async sellInventoryItem(inventoryId: number) {
@@ -264,6 +272,13 @@ export const apiClient = {
   async refreshCardCache() {
     const response = await fetch(`/api/refresh-card-cache`, {
       method: 'POST',
+      credentials: 'include',
+    });
+    return response.json();
+  },
+
+  async getAllUserData() {
+    const response = await fetch(`/api/user/all-data`, {
       credentials: 'include',
     });
     return response.json();

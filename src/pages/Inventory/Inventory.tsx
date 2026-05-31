@@ -17,8 +17,6 @@ interface InventoryItem {
   sell_price?: number;
 }
 
-let lastCacheRefresh = 0;
-
 export default function Inventory() {
   const { isSignedIn, user } = useUser();
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -35,14 +33,8 @@ export default function Inventory() {
     }
   }, [isSignedIn]);
 
-  const CACHE_REFRESH_COOLDOWN = 300000;
   useEffect(() => {
     if (isSignedIn) {
-      const now = Date.now();
-      if (now - lastCacheRefresh > CACHE_REFRESH_COOLDOWN) {
-        lastCacheRefresh = now;
-        apiClient.refreshCardCache().catch(err => console.warn('Failed to refresh card cache:', err));
-      }
       loadExistingCards();
     }
   }, [isSignedIn]);

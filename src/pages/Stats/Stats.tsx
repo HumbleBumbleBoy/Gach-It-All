@@ -1,6 +1,7 @@
 import Navbar from '../../components/Navbar';
 import { useUser } from '@clerk/react';
 import { useEffect, useState } from 'react';
+import { apiClient } from '../../../lib/api';
 
 export default function Stats() {
   const { isSignedIn, user } = useUser();
@@ -9,12 +10,11 @@ export default function Stats() {
 
   useEffect(() => {
     if (isSignedIn && user) {
-      fetch('/api/user/stats', {
-        credentials: 'include',
-      })
-        .then(res => res.json())
-        .then(data => setStats(data.stats))
-        .catch(err => console.error('Failed to fetch stats:', err));
+      apiClient.getUserStats().then(data => {
+        setStats(data.stats);
+      }).catch(err => {
+        console.error('Failed to fetch stats:', err);
+      });
     }
   }, [isSignedIn, user]);
 

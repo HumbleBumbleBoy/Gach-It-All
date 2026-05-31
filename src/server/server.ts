@@ -686,6 +686,7 @@ app.get('/api/user/inventory', async (req, res) => {
 app.get('/api/cards', async (_req, res) => {
   try {
     const cardTemplates = await getCachedCardTemplates();
+    res.setHeader('Cache-Control', 'public, max-age=3600');
     res.json({ items: cardTemplates });
   } catch (error) {
     console.error('Error fetching card templates:', error);
@@ -919,6 +920,7 @@ const ACHIEVEMENTS_CACHE_TTL = 300000;
 let allAchievementsCache: any[] | null = null;
 let allAchievementsLastFetch = 0;
 const ALL_ACHIEVEMENTS_CACHE_TTL = 300000;
+
 app.get('/api/achievements', async (_req, res) => {
   try {
     const now = Date.now();
@@ -926,7 +928,8 @@ app.get('/api/achievements', async (_req, res) => {
       allAchievementsCache = await prisma.achievement.findMany();
       allAchievementsLastFetch = now;
     }
-    // Make sure we always return an array
+    // Cache for 5 minutes
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({ achievements: allAchievementsCache || [] });
   } catch (error) {
     console.error('Error fetching achievements:', error);
@@ -1826,6 +1829,30 @@ app.post('/api/refresh-card-cache', async (req, res) => {
     res.status(500).json({ error: 'Failed to refresh cache' });
   }
 })
+
+app.get('/api/user/all-data', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const user = await prisma.user.findUnique({
+    where: { clerkId: auth.userId },
+    select: { id: true, currency: true, user_status: true }
+  });
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  const [userAchievements, achievements] = await Promise.all([
+    prisma.userAchievement.findMany({ where: { user_id: user.id } }),
+    prisma.achievement.findMany()
+  ]);
+  
+  res.json({
+    currency: user.currency,
+    userStatus: user.user_status,
+    userAchievements,
+    achievements
+  });
+});
 
 const lastHeartbeat = new Map();
 setInterval(() => {

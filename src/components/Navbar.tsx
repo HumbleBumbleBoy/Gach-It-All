@@ -4,6 +4,7 @@ import { Bars3Icon, TrophyIcon, XMarkIcon, SpeakerWaveIcon, SpeakerXMarkIcon, Ar
 import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../lib/api';
+import { clientState } from '../../lib/clientState';
 import LoadingSkeleton from './LoadingSkeleton';
 
 const navigation = [
@@ -83,28 +84,34 @@ export default function Navbar() {
 
   useEffect(() => {
     if (isSignedIn && user) {
-      apiClient.getCurrency()
-        .then(data => setCurrency(data.currency ?? 0))
-        .catch(err => console.error('Failed to fetch currency:', err));
-
-      apiClient.getAchievements()
-        .then(data => setAchievements(data.achievements || []))
-        .catch(err => console.error('Failed to fetch achievements:', err));
-
-      apiClient.getUserAchievements()
-        .then(data => setUserAchievements(data.userAchievements || []))
-        .catch(err => console.error('Failed to fetch user achievements:', err));
-      apiClient.getUserStatus()
-        .then(data => setUserStatus(data.status))
-        .catch(err => console.error('Failed to fetch user status:', err));
-
-      const interval = setInterval(() => {
-        apiClient.getUserAchievements()
-          .then(data => setUserAchievements(data.userAchievements || []))
-          .catch(err => console.error('Failed to refresh achievements:', err));
-      }, 15000);
-
-      return () => clearInterval(interval);
+      // Initialize client state (only once)
+      clientState.initialize();
+      
+      // Subscribe to changes
+      const unsubscribeCurrency = clientState.subscribe('currency', () => {
+        setCurrency(clientState.currency);
+      });
+      
+      const unsubscribeStatus = clientState.subscribe('userStatus', () => {
+        setUserStatus(clientState.userStatus);
+      });
+      
+      const unsubscribeAchievements = clientState.subscribe('achievements', () => {
+        setAchievements(clientState.achievements);
+        setUserAchievements(clientState.userAchievements);
+      });
+      
+      // Set initial values
+      setCurrency(clientState.currency);
+      setUserStatus(clientState.userStatus);
+      setAchievements(clientState.achievements);
+      setUserAchievements(clientState.userAchievements);
+      
+      return () => {
+        unsubscribeCurrency();
+        unsubscribeStatus();
+        unsubscribeAchievements();
+      };
     }
   }, [isSignedIn, user]);
 
@@ -127,7 +134,6 @@ export default function Navbar() {
         eventSource.onmessage = async (event) => {
           try {
             const data = JSON.parse(event.data);
-            // Don't log to console in production
             setToast({ show: true, achievement: data.achievement, reward: data.reward });
             
             const [newCurrency, newUserAchievements] = await Promise.all([
@@ -138,6 +144,7 @@ export default function Navbar() {
             setCurrency(newCurrency.currency ?? 0);
             setUserAchievements(newUserAchievements.userAchievements || []);
             
+            clientState.refresh()
             setTimeout(() => setToast(null), 5000);
           } catch (err) {
             // Silent fail

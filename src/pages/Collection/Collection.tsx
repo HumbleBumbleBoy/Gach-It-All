@@ -2,7 +2,7 @@ import Navbar from '../../components/Navbar';
 import { useUser } from '@clerk/react';
 import { useEffect, useState, useRef } from 'react';
 import { apiClient } from '../../../lib/api';
-import { ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
+import { ArrowUpIcon, ArrowDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 // Pricing multipliers
 const QUALITY_MULTIPLIERS = {
@@ -104,6 +104,9 @@ export default function Collection() {
   const [completedRewardsGiven, setCompletedRewardsGiven] = useState<Set<number>>(new Set());
   const [completedCardsCount, setCompletedCardsCount] = useState(0);
   const [completedCardsPerRarity, setCompletedCardsPerRarity] = useState<Record<string, number>>({});
+  const tooltipRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const [currentPage, setCurrentPage] = useState(1);
+  const CARDS_PER_PAGE = 35
     const [sortBy, setSortBy] = useState<'rarity' | 'name' | 'base_price' | 'quantity' | 'completion' | 'base_hp' | 'base_def' | 'base_atk'>(() => {
     const saved = localStorage.getItem('collectionSortBy');
     return (saved && ['rarity', 'name', 'base_price', 'quantity', 'completion', 'base_hp', 'base_def', 'base_atk'].includes(saved)) ? saved as any : 'rarity';
@@ -148,6 +151,10 @@ export default function Collection() {
   useEffect(() => {
     localStorage.setItem('collectionVariantSortDirection', variantSortDirection);
   }, [variantSortDirection]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sortBy, sortDirection, showOnlyFavorites, viewMode]);
 
   // Initialize totals from allCards
   useEffect(() => {
@@ -705,7 +712,7 @@ export default function Collection() {
         break;
       case 'completion':
         filtered.sort((a, b) => {
-          const totalVariants = 20; // 5 qualities × 4 enhancements
+          const totalVariants = 20;
           const completionA = a.variants?.length / totalVariants;
           const completionB = b.variants?.length / totalVariants;
           return sortDirection === 'asc' ? completionA - completionB : completionB - completionA;
@@ -735,6 +742,30 @@ export default function Collection() {
     }
     
     return filtered;
+  };
+
+  const getPaginatedCards = () => {
+    const sortedCards = getSortedRootCards(getCurrentCards());
+    const startIndex = (currentPage - 1) * CARDS_PER_PAGE;
+    const endIndex = startIndex + CARDS_PER_PAGE;
+    return sortedCards.slice(startIndex, endIndex);
+  };
+
+  const totalPages = () => {
+    const sortedCards = getSortedRootCards(getCurrentCards());
+    return Math.ceil(sortedCards.length / CARDS_PER_PAGE);
+  };
+
+  const goToPage = (page: number) => {
+    const total = totalPages();
+    if (page >= 1 && page <= total) {
+      setCurrentPage(page);
+      // Scroll to top of grid
+      const gridElement = document.getElementById('card-grid');
+      if (gridElement) {
+        gridElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
   };
 
   const getSortedVariants = () => {
@@ -819,7 +850,6 @@ export default function Collection() {
     <>
       <Navbar />
       <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
-        {/* Rarity progress bars - always show */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
           {RARITY_CATEGORIES.map((rarity) => {
             const style = getRarityStyle(rarity);
@@ -1000,20 +1030,22 @@ export default function Collection() {
         
         {/* Card grid */}
         {getCurrentCards().length > 0 && (
-          <div className="flex flex-wrap gap-3 mt-10 justify-around sm:justify-start mb-100">
-            {getSortedRootCards(getCurrentCards()).map((rootCard: any) => {
-              const style = getRarityStyle(rootCard.rarity);
-              const owned = viewMode === 'your' && isSignedIn ? true : isCardOwned(rootCard.templateId);
-              
-              return (
-                <div 
-                  key={rootCard.templateId}
-                  onClick={() => viewMode === 'your' && isSignedIn ? openRootCardDetails(rootCard) : null}
-                  onMouseEnter={() => setHoveredCard(rootCard.templateId)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                  className={`relative border-2 p-2 w-37.5 cursor-pointer transition-colors rounded-lg ${style.borderColor} ${style.aura || ''} ${
-                    !owned && viewMode === 'entire' ? 'opacity-40 grayscale hover:opacity-60' : 'bg-gray-900 hover:bg-gray-800'
-                  }`}
+          <>
+            <div id="card-grid" className="flex flex-wrap gap-3 mt-10 justify-around sm:justify-start">
+              {getPaginatedCards().map((rootCard: any) => {
+                const style = getRarityStyle(rootCard.rarity);
+                const owned = viewMode === 'your' && isSignedIn ? true : isCardOwned(rootCard.templateId);
+                
+                return (
+                  <div 
+                    id={`card-${rootCard.templateId}`}
+                    key={rootCard.templateId}
+                    onClick={() => viewMode === 'your' && isSignedIn ? openRootCardDetails(rootCard) : null}
+                    onMouseEnter={() => setHoveredCard(rootCard.templateId)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                    className={`relative border-2 p-2 w-37.5 cursor-pointer transition-colors rounded-lg ${style.borderColor} ${style.aura || ''} ${
+                      !owned && viewMode === 'entire' ? 'opacity-40 grayscale hover:opacity-60' : 'bg-gray-900 hover:bg-gray-800'
+                    }`}
                   style={(() => {
                     const hasSignedCrisp = rootCard.variants?.some((v: any) => 
                       v.enhancement === 'SIGNED' && v.quality === 'CRISP' && v.quantity > 0
@@ -1126,9 +1158,24 @@ export default function Collection() {
                   )}
                   
                   {hoveredCard === rootCard.templateId && (
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5">
-                      <p className={`font-semibold mb-1 ${style.textColor}`}>{rootCard.name}</p>
-                      <p className="text-gray-300 text-[10px]">{rootCard.description || 'No description'}</p>
+                    <div 
+                      ref={(el) => {
+                        if (el && tooltipRefs.current) {
+                          tooltipRefs.current.set(rootCard.templateId, el);
+                          const rect = el.getBoundingClientRect();
+                          const cardRect = document.getElementById(`card-${rootCard.templateId}`)?.getBoundingClientRect();
+                          if (cardRect && rect.bottom > window.innerHeight) {
+                            el.style.top = 'auto';
+                            el.style.bottom = '100%';
+                            el.style.marginTop = '0';
+                            el.style.marginBottom = '8px';
+                          }
+                        }
+                      }}
+                      className="absolute left-1/2 -translate-x-1/2 top-full mt-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-700 min-w-37.5"
+                    >
+                      <p className={`font-semibold mb-1 text-[14px] ${style.textColor}`}>{rootCard.name}</p>
+                      <p className="text-gray-300 text-[12px] line-clamp-16">{rootCard.description || 'No description'}</p>
                       <p className={`text-[10px] mt-1 pt-1 ${style.textColor} opacity-75`}>{rootCard.series || 'Missing Series'} | {rootCard.type || 'Missing Type'}</p>
                       {viewMode === 'entire' && rootCard.base_price && (
                         <p className={`text-[10px] mt-1 pt-1 ${style.textColor}`}>Price: ${rootCard.base_price.toFixed(2)}</p>
@@ -1139,6 +1186,75 @@ export default function Collection() {
               );
             })}
           </div>
+
+            {totalPages() > 1 && (
+              <div className="flex justify-center items-center gap-4 mt-8 mb-4">
+                <button
+                  onClick={() => goToPage(1)}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-2 rounded-lg flex items-center transition-colors ${
+                    currentPage === 1
+                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-700 hover:bg-gray-600 text-white'
+                  }`}
+                >
+                  
+                  <ChevronLeftIcon className="w-4 h-" />
+                  <ChevronLeftIcon className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                    currentPage === 1
+                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-700 hover:bg-gray-600 text-white'
+                  }`}
+                >
+                <ChevronLeftIcon className="w-4 h-4" />
+                  
+                </button>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400">
+                    Page {currentPage} of {totalPages()}
+                  </span>
+                </div>
+                
+                <button
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === totalPages()}
+                  className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                    currentPage === totalPages()
+                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-700 hover:bg-gray-600 text-white'
+                  }`}
+                >
+                  
+                  <ChevronRightIcon className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => goToPage(totalPages())}
+                  disabled={currentPage === totalPages()}
+                  className={`px-3 py-2 rounded-lg flex items-center transition-colors ${
+                    currentPage === totalPages()
+                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-700 hover:bg-gray-600 text-white'
+                  }`}
+                >
+                  
+                  <ChevronRightIcon className="w-4 h-" />
+                  <ChevronRightIcon className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            
+            {/* Show total count */}
+            <div className="text-center text-gray-500 text-sm mt-2">
+              Showing {Math.min(CARDS_PER_PAGE, getSortedRootCards(getCurrentCards()).length - (currentPage - 1) * CARDS_PER_PAGE)} of {getSortedRootCards(getCurrentCards()).length} cards
+            </div>
+          </>
         )}
 
         {isSignedIn && viewMode === 'your' && selectedRootCard && selectedVariants.length > 0 && (
