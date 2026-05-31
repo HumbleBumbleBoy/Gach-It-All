@@ -1262,9 +1262,9 @@ async function generatePackCards(pack: any, userId: number) {
   }
   
   const remainingCards = pack.cards_count - guaranteedCards.length;
-  
   const cardsToCreate: any[] = [];
   
+  // Generate regular cards
   for (let i = 0; i < remainingCards; i++) {
     const rarity = determineRarity(pack);
     const cardsOfRarity = availableCards.filter((card: any) => card.rarity === rarity);
@@ -1302,6 +1302,7 @@ async function generatePackCards(pack: any, userId: number) {
     }
 
     packRarities.push(selectedCard.rarity);
+    
     const qualityRandom = Math.random() * 100;
     let quality: Quality = Quality.REGULAR;
     let qualityCumulative = 0;
@@ -1347,12 +1348,9 @@ async function generatePackCards(pack: any, userId: number) {
       quality: quality,
       enhancement: enhancement,
     });
-
-    await checkAndUpdateAchievements(userId, Condition.CARD_RARITY, selectedCard);
-    await checkAndUpdateAchievements(userId, Condition.CARD_NAME_LENGTH, selectedCard);
-    await checkAndUpdateAchievements(userId, Condition.CARD_NAME_WORDS, selectedCard);
   }
   
+  // Generate guaranteed cards
   for (const guaranteedCard of guaranteedCards) {
     const needsFallback = !guaranteedCard.base_hp || !guaranteedCard.base_atk || !guaranteedCard.base_def || !guaranteedCard.base_price;
     if (needsFallback) {
@@ -1426,12 +1424,9 @@ async function generatePackCards(pack: any, userId: number) {
       quality: quality,
       enhancement: enhancement,
     });
-
-    await checkAndUpdateAchievements(userId, Condition.CARD_RARITY, guaranteedCard);
-    await checkAndUpdateAchievements(userId, Condition.CARD_NAME_LENGTH, guaranteedCard);
-    await checkAndUpdateAchievements(userId, Condition.CARD_NAME_WORDS, guaranteedCard);
   }
   
+  // ONE transaction to create all cards
   const createdCards = await prisma.$transaction(
     cardsToCreate.map((cardData: any) => 
       prisma.userCards.create({
@@ -1441,21 +1436,34 @@ async function generatePackCards(pack: any, userId: number) {
     )
   );
 
+  // Update unique cards count in ONE query
+  const uniqueTemplates = await prisma.userCards.findMany({
+    where: { user_id: userId },
+    select: { card_template_id: true },
+    distinct: ['card_template_id']
+  });
+  
+  await prisma.userStats.update({
+    where: { user_id: userId },
+    data: { unique_cards: uniqueTemplates.length }
+  });
 
+  // Get all LUCKY_PULL achievements
   const rarityCounts = packRarities.reduce<Record<string, number>>((acc, rarity) => {
     acc[rarity] = (acc[rarity] || 0) + 1;
     return acc;
   }, {});
 
-  // Get all LUCKY_PULL achievements
   const luckyPullAchievements = await prisma.achievement.findMany({
     where: { condition: Condition.LUCKY_PULL }
   });
 
+  // Track granted achievements to avoid duplicates
+  const grantedAchievements = new Set<number>();
+
   for (const achievement of luckyPullAchievements) {
     const targetRarity = achievement.value_string;
     if (targetRarity && rarityCounts[targetRarity] >= 2) {
-      // Check if already completed to avoid duplicate processing
       const existing = await prisma.userAchievement.findUnique({
         where: {
           user_id_achievement_id: {
@@ -1482,6 +1490,7 @@ async function generatePackCards(pack: any, userId: number) {
             completed_at: new Date()
           }
         });
+        grantedAchievements.add(achievement.id);
         
         const userData = await prisma.user.findUnique({
           where: { id: userId },
@@ -1494,27 +1503,35 @@ async function generatePackCards(pack: any, userId: number) {
     }
   }
   
-  await checkAndUpdateAchievements(userId, Condition.CARDS_COLLECTED);
+  // Check card-specific achievements for each card
   for (const card of createdCards) {
-    const templateId = card.card_template_id;
-
-    const name = card.cardTemplate.name || '';
-    const wordCount = name.split(/\s+/).filter(w => w.length > 0).length;
+    const template = card.cardTemplate;
+    const name = template.name || '';
+    const wordCount = name.split(/\s+/).filter((w: string) => w.length > 0).length;
     const charCount = name.length;
     
     if (charCount > 5) {
-      await checkAndUpdateAchievements(userId, Condition.CARD_NAME_LENGTH);
+      await checkAndUpdateAchievements(userId, Condition.CARD_NAME_LENGTH, template);
     }
     if (wordCount > 5) {
-      await checkAndUpdateAchievements(userId, Condition.CARD_NAME_WORDS);
+      await checkAndUpdateAchievements(userId, Condition.CARD_NAME_WORDS, template);
     }
     
-    // Check if user has all 20 variants for this card template
-    const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
-    const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
-    await checkAndUpdateAchievements(userId, Condition.CARD_HEALTH, card.cardTemplate);
-    await checkAndUpdateAchievements(userId, Condition.CARD_STRENGTH, card.cardTemplate);
-    await checkAndUpdateAchievements(userId, Condition.CARD_DEFENCE, card.cardTemplate);
+    await checkAndUpdateAchievements(userId, Condition.CARD_HEALTH, template);
+    await checkAndUpdateAchievements(userId, Condition.CARD_STRENGTH, template);
+    await checkAndUpdateAchievements(userId, Condition.CARD_DEFENCE, template);
+    await checkAndUpdateAchievements(userId, Condition.CARD_RARITY, template);
+  }
+  
+  // Check CARD_SET_COMPLETION for each unique card template
+  const checkedTemplates = new Set<number>();
+  const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+  const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+  
+  for (const card of createdCards) {
+    const templateId = card.card_template_id;
+    if (checkedTemplates.has(templateId)) continue;
+    checkedTemplates.add(templateId);
     
     let hasAllVariants = true;
     for (const quality of allQualities) {
@@ -1540,7 +1557,9 @@ async function generatePackCards(pack: any, userId: number) {
       await checkAndUpdateAchievements(userId, Condition.CARD_SET_COMPLETION);
     }
   }
-
+  
+  await checkAndUpdateAchievements(userId, Condition.CARDS_COLLECTED);
+  
   return createdCards;
 }
 
