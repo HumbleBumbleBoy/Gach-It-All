@@ -84,10 +84,13 @@ export default function Shop() {
       loadPurchasedHistory();
       calculateRefreshTime();
       
-      const interval = setInterval(calculateRefreshTime, 60000);
+      const interval = setInterval(() => {
+        calculateRefreshTime();
+        loadPurchasedHistory();
+      }, 60000);
       return () => clearInterval(interval);
     }
-  }, [isSignedIn]);
+}, [isSignedIn]);
 
   const calculateRefreshTime = () => {
     const now = new Date();
