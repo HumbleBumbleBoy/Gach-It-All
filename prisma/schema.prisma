@@ -54,7 +54,6 @@ model UserStats {
 
   total_currency_spent      Float @default(0)
   total_currency_gained     Float @default(0)
-  total_cards_enhanced      Int   @default(0)
   highest_battle_rating     Float @default(1000)
   tournament_wins           Int   @default(0)
   lucky_pulls               Int   @default(0)
@@ -234,7 +233,7 @@ enum Comparator {
 }
 
 enum Condition {
-  CURRENCY
+  CURRENCY                  // checks how much you have in 1 moment
   CURRENCY_SPENT
   CURRENCY_GAINED
   LOSSES
@@ -244,32 +243,32 @@ enum Condition {
   CARD_STRENGTH
   CARD_DEFENCE
   CARD_HEALTH
-  CARD_RARITY
-  CARD_NAME_LENGTH
-  CARD_NAME_WORDS
-  STATUS
-  ACCOUNT_AGE
+  CARD_RARITY               // gotten a card rarity
+  CARD_NAME_LENGTH          // amount of characters in a card you own
+  CARD_NAME_WORDS           // amount of words in a card you own
+  STATUS                    // have a status
+  ACCOUNT_AGE               // check time passed from x to y, counted in days (int)
   LOGIN_STREAK
   TOTAL_LOGINS
   TRADES_COMPLETED
-  ENHANCED_CARDS
   CONSECUTIVE_WINS
   CARDS_SOLD
   PURCHASES_MADE
   UNIQUE_CARD_SERIES
-  CARD_SET_COMPLETION
+  CARD_SET_COMPLETION       // amount of individual cards you finished (20 varients of a card gotten)
   BATTLE_RATING
   TOURNAMENT_WINS
   ACHIEVEMENT_COUNT
-  INVENTORY_ITEMS
-  RARITY_COLLECTION
-  BATTLE_PARTICIPATION
-  KILLS_IN_BATTLES
-  PLAY_TIME
-  SERIES_COMPLETED
-  LUCKY_PULL
-  ONE_SHOT
-  TRADE_FLIP
+  INVENTORY_ITEMS           // amount of items in inventory
+  RARITY_COLLECTION         // collected x cards from x rarity ie. special (tho i need to make this possible with current db structure for ahcevemnts)
+  BATTLE_PARTICIPATION      
+  KILLS_IN_BATTLES          
+  PLAY_TIME                 // time played (in minutes)
+  SERIES_COMPLETED          // how many series you've done ie. all (any) cards from Card_Games, completed
+  PERFECT_SERIES_COMPLETED  // how many series you've 100% ie. all varients of all cards from Card_games
+  LUCKY_PULL                // have gotten at least 2 of x rarities in one pack (more_or_equal "UBER_RARE" will check for 2 uber rares in one pack etc.) 
+  ONE_SHOT                  // enemies killed in one hit
+  TRADE_FLIP                // how many rarities apart a trade is (int 2 means from common traded to sparse)
 }
 
 enum DataType {

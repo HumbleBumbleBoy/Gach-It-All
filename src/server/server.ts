@@ -88,14 +88,20 @@ async function grantReward(userId: number, rewardType: Reward, rewardValue: stri
       break;
       
     case Reward.PACK:
-      await prisma.userInventory.create({
-        data: {
-          user_id: userId,
-          item_type: 'PACK',
-          reference_id: parseInt(rewardValue),
-          quantity: 1
-        }
-      });
+      const packId = parseInt(rewardValue);
+      const packExists = await prisma.pack.findUnique({ where: { id: packId } });
+      if (packExists) {
+        await prisma.userInventory.create({
+          data: {
+            user_id: userId,
+            item_type: 'PACK',
+            reference_id: packId,
+            quantity: 1
+          }
+        });
+      } else {
+        console.error(`Pack ${packId} not found`);
+      }
       break;
       
     case Reward.COSMETIC:
@@ -130,6 +136,7 @@ async function updateCurrency(userId: number, amount: number, type: 'gain' | 'sp
       where: { id: userId },
       data: { currency: { increment: roundedAmount } }
     });
+    await checkAndUpdateAchievements(userId, Condition.CURRENCY_GAINED);
   } else {
     await prisma.userStats.update({
       where: { user_id: userId },
@@ -139,7 +146,10 @@ async function updateCurrency(userId: number, amount: number, type: 'gain' | 'sp
       where: { id: userId },
       data: { currency: { decrement: roundedAmount } }
     });
+    await checkAndUpdateAchievements(userId, Condition.CURRENCY_SPENT);
   }
+
+  await checkAndUpdateAchievements(userId, Condition.CURRENCY);
 }
 
 async function getAchievementsByCondition(condition: Condition): Promise<any[]> {
@@ -154,7 +164,7 @@ async function getAchievementsByCondition(condition: Condition): Promise<any[]> 
   return cachedAchievements.get(condition)!;
 }
 
-async function checkAndUpdateAchievements(userId: number, triggerCondition: Condition) {
+async function checkAndUpdateAchievements(userId: number, triggerCondition: Condition, cardData?: any) {
   const achievements = await getAchievementsByCondition(triggerCondition);
   if (achievements.length === 0) return;
   
@@ -221,8 +231,36 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
       case Condition.PURCHASES_MADE:
         currentValue = user.userStats.purchases_made;
         break;
-      case Condition.ENHANCED_CARDS:
-        currentValue = enhancedCardsCount;
+      // Card-specific conditions using cardData
+      case Condition.CARD_HEALTH:
+        currentValue = cardData?.base_hp ?? 0;
+        break;
+      case Condition.CARD_STRENGTH:
+        currentValue = cardData?.base_atk ?? 0;
+        break;
+      case Condition.CARD_DEFENCE:
+        currentValue = cardData?.base_def ?? 0;
+        break;
+      case Condition.CARD_NAME_LENGTH:
+        currentValue = cardData?.name?.length ?? 0;
+        break;
+      case Condition.CARD_NAME_WORDS:
+        currentValue = cardData?.name?.split(/\s+/).filter((w: string) => w.length > 0).length ?? 0;
+        break;
+      case Condition.CARD_RARITY:
+        // For CARD_RARITY, there's a need to check if the card's rarity matches the achievement's value_string
+        // This is handled differently, just set currentValue to 1 if matches, else 0
+        currentValue = (cardData?.rarity === ach.value_string) ? 1 : 0;
+        break;
+      case Condition.INVENTORY_ITEMS:
+        const itemCount = await prisma.userInventory.aggregate({
+          where: { user_id: userId },
+          _sum: { quantity: true }
+        });
+        currentValue = itemCount._sum.quantity || 0;
+        break;
+      case Condition.ACHIEVEMENT_COUNT:
+        currentValue = existingAchievements.filter(ea => ea.completed_at).length;
         break;
       default:
         currentValue = 0;
@@ -304,6 +342,8 @@ async function checkAndUpdateAchievements(userId: number, triggerCondition: Cond
         sendAchievementNotification(userData.clerkId, ach.name, `${ach.reward_type}: ${ach.reward_value}`);
       }
     }
+
+    await checkAndUpdateAchievements(userId, Condition.ACHIEVEMENT_COUNT);
   }
 }
 
@@ -563,6 +603,9 @@ app.post('/api/user-login', async (req, res) => {
 
     await checkAndUpdateAchievements(dbUser.id, Condition.PLAY_TIME);
     await checkAndUpdateAchievements(dbUser.id, Condition.TOTAL_LOGINS);
+    await checkAndUpdateAchievements(dbUser.id, Condition.LOGIN_STREAK);
+    await checkAndUpdateAchievements(dbUser.id, Condition.ACCOUNT_AGE);
+    await checkAndUpdateAchievements(dbUser.id, Condition.STATUS);
 
     const hasBadge = await prisma.userInventory.findFirst({
       where: {
@@ -732,6 +775,10 @@ app.get('/api/user/collection', async (req, res) => {
       }
     });
     
+    await checkAndUpdateAchievements(user.id, Condition.UNIQUE_CARD_SERIES);
+    await checkAndUpdateAchievements(user.id, Condition.SERIES_COMPLETED);
+    await checkAndUpdateAchievements(user.id, Condition.PERFECT_SERIES_COMPLETED);
+    await checkAndUpdateAchievements(user.id, Condition.RARITY_COLLECTION);
     res.json({ items: userCards });
   } catch (error) {
     console.error('Error fetching user collection:', error);
@@ -1174,7 +1221,6 @@ app.post('/api/gacha/pack', async (req, res) => {
   
   Promise.all([
     checkAndUpdateAchievements(user.id, Condition.PACKS_OPENED),
-    checkAndUpdateAchievements(user.id, Condition.CARDS_COLLECTED)
   ]).catch(console.error);
   
   res.json({ success: true, cards, packName: pack.name });
@@ -1182,6 +1228,7 @@ app.post('/api/gacha/pack', async (req, res) => {
 
 async function generatePackCards(pack: any, userId: number) {
   let availableCards: any[] = await getCachedCardTemplates();
+  const packRarities: string[] = [];
   
   if (pack.included_series && Array.isArray(pack.included_series)) {
     availableCards = availableCards.filter((card: any) => 
@@ -1261,7 +1308,8 @@ async function generatePackCards(pack: any, userId: number) {
       selectedCard.base_def = fallbackStats.def;
       selectedCard.base_price = fallbackStats.price;
     }
-    
+
+    packRarities.push(selectedCard.rarity);
     const qualityRandom = Math.random() * 100;
     let quality: Quality = Quality.REGULAR;
     let qualityCumulative = 0;
@@ -1300,13 +1348,17 @@ async function generatePackCards(pack: any, userId: number) {
         break;
       }
     }
-    
+
     cardsToCreate.push({
       user_id: userId,
       card_template_id: selectedCard.id,
       quality: quality,
       enhancement: enhancement,
     });
+
+    await checkAndUpdateAchievements(userId, Condition.CARD_RARITY, selectedCard);
+    await checkAndUpdateAchievements(userId, Condition.CARD_NAME_LENGTH, selectedCard);
+    await checkAndUpdateAchievements(userId, Condition.CARD_NAME_WORDS, selectedCard);
   }
   
   for (const guaranteedCard of guaranteedCards) {
@@ -1374,12 +1426,18 @@ async function generatePackCards(pack: any, userId: number) {
       }
     }
     
+    packRarities.push(guaranteedCard.rarity);
+
     cardsToCreate.push({
       user_id: userId,
       card_template_id: guaranteedCard.id,
       quality: quality,
       enhancement: enhancement,
     });
+
+    await checkAndUpdateAchievements(userId, Condition.CARD_RARITY, guaranteedCard);
+    await checkAndUpdateAchievements(userId, Condition.CARD_NAME_LENGTH, guaranteedCard);
+    await checkAndUpdateAchievements(userId, Condition.CARD_NAME_WORDS, guaranteedCard);
   }
   
   const createdCards = await prisma.$transaction(
@@ -1390,7 +1448,107 @@ async function generatePackCards(pack: any, userId: number) {
       })
     )
   );
+
+
+  const rarityCounts = packRarities.reduce<Record<string, number>>((acc, rarity) => {
+    acc[rarity] = (acc[rarity] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Get all LUCKY_PULL achievements
+  const luckyPullAchievements = await prisma.achievement.findMany({
+    where: { condition: Condition.LUCKY_PULL }
+  });
+
+  for (const achievement of luckyPullAchievements) {
+    const targetRarity = achievement.value_string;
+    if (targetRarity && rarityCounts[targetRarity] >= 2) {
+      // Check if already completed to avoid duplicate processing
+      const existing = await prisma.userAchievement.findUnique({
+        where: {
+          user_id_achievement_id: {
+            user_id: userId,
+            achievement_id: achievement.id
+          }
+        }
+      });
+      
+      if (!existing || !existing.completed_at) {
+        await grantReward(userId, achievement.reward_type, achievement.reward_value);
+        await prisma.userAchievement.upsert({
+          where: {
+            user_id_achievement_id: {
+              user_id: userId,
+              achievement_id: achievement.id
+            }
+          },
+          update: { completed_at: new Date(), progress: 100 },
+          create: {
+            user_id: userId,
+            achievement_id: achievement.id,
+            progress: 100,
+            completed_at: new Date()
+          }
+        });
+        
+        const userData = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { clerkId: true }
+        });
+        if (userData) {
+          sendAchievementNotification(userData.clerkId, achievement.name, `${achievement.reward_type}: ${achievement.reward_value}`);
+        }
+      }
+    }
+  }
   
+  await checkAndUpdateAchievements(userId, Condition.CARDS_COLLECTED);
+  for (const card of createdCards) {
+    const templateId = card.card_template_id;
+
+    const name = card.cardTemplate.name || '';
+    const wordCount = name.split(/\s+/).filter(w => w.length > 0).length;
+    const charCount = name.length;
+    
+    if (charCount > 5) {
+      await checkAndUpdateAchievements(userId, Condition.CARD_NAME_LENGTH);
+    }
+    if (wordCount > 5) {
+      await checkAndUpdateAchievements(userId, Condition.CARD_NAME_WORDS);
+    }
+    
+    // Check if user has all 20 variants for this card template
+    const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+    const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+    await checkAndUpdateAchievements(userId, Condition.CARD_HEALTH, card.cardTemplate);
+    await checkAndUpdateAchievements(userId, Condition.CARD_STRENGTH, card.cardTemplate);
+    await checkAndUpdateAchievements(userId, Condition.CARD_DEFENCE, card.cardTemplate);
+    
+    let hasAllVariants = true;
+    for (const quality of allQualities) {
+      for (const enhancement of allEnhancements) {
+        const exists = await prisma.userCards.findFirst({
+          where: {
+            user_id: userId,
+            card_template_id: templateId,
+            quality: quality as Quality,
+            enhancement: enhancement as Enhancement
+          },
+          select: { id: true }
+        });
+        if (!exists) {
+          hasAllVariants = false;
+          break;
+        }
+      }
+      if (!hasAllVariants) break;
+    }
+    
+    if (hasAllVariants) {
+      await checkAndUpdateAchievements(userId, Condition.CARD_SET_COMPLETION);
+    }
+  }
+
   return createdCards;
 }
 
@@ -1634,6 +1792,7 @@ app.post('/api/shop/purchase', async (req, res) => {
     }
     
     await checkAndUpdateAchievements(user.id, Condition.PURCHASES_MADE);
+    await checkAndUpdateAchievements(user.id, Condition.INVENTORY_ITEMS);
     
     res.json({ success: true, reward, newCurrency: user.currency - price });
     
@@ -1729,6 +1888,7 @@ app.post('/api/inventory/sell', async (req, res) => {
     }
     
     await updateCurrency(user.id, sellPrice, 'gain');
+    await checkAndUpdateAchievements(user.id, Condition.INVENTORY_ITEMS);
     
     res.json({ success: true, sellPrice, itemName });
   } catch (error) {
