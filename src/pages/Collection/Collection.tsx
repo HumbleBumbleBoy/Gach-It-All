@@ -3,6 +3,7 @@ import { useUser } from '@clerk/react';
 import { useEffect, useState, useRef } from 'react';
 import { apiClient } from '../../../lib/api';
 import { ArrowUpIcon, ArrowDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { clientState } from '../../../lib/clientState';
 
 // Pricing multipliers
 const QUALITY_MULTIPLIERS = {
@@ -554,6 +555,8 @@ export default function Collection() {
       if (updatedVariants.length === 0) {
         setSelectedRootCard(null);
       }
+
+      clientState.addCurrency(variant.sellPrice);
     } catch (error) {
       console.error('Failed to sell card:', error);
       alert('Failed to sell card');
@@ -577,6 +580,8 @@ export default function Collection() {
       if (updatedVariants.length === 0) {
         setSelectedRootCard(null);
       }
+
+      clientState.addCurrency(variant.sellPrice);
     } catch (error) {
       console.error('Failed to sell cards:', error);
       alert('Failed to sell cards');
@@ -584,44 +589,33 @@ export default function Collection() {
   };
 
   const sellAllUntilOne = async (_rootCard: any) => {
-    // Group cards by variant key (quality-enhancement combination)
     const variantMap = new Map<string, any[]>();
     for (const variant of selectedVariants) {
       for (const card of variant.cards) {
         const key = `${card.quality}-${card.enhancement}`;
-        if (!variantMap.has(key)) {
-          variantMap.set(key, []);
-        }
+        if (!variantMap.has(key)) variantMap.set(key, []);
         variantMap.get(key)!.push(card);
       }
     }
     
-    // For each variant, keep the best card and collect the rest to sell
     const cardsToSell: any[] = [];
     const qualityOrderLocal = ['CRISP', 'GOOD', 'REGULAR', 'POOR', 'TARNISHED'];
     const enhancementOrderLocal = ['SIGNED', 'SHINY', 'FOILED', 'BASIC'];
     
     for (const [_, cards] of variantMap) {
       if (cards.length > 1) {
-        // Find the best card in this variant
         const bestCard = cards.reduce((best: any, current: any) => {
           const currentQualityIndex = qualityOrderLocal.indexOf(current.quality);
           const bestQualityIndex = qualityOrderLocal.indexOf(best.quality);
-          
           if (currentQualityIndex < bestQualityIndex) return current;
           if (currentQualityIndex > bestQualityIndex) return best;
-          
           const currentEnhancementIndex = enhancementOrderLocal.indexOf(current.enhancement);
           const bestEnhancementIndex = enhancementOrderLocal.indexOf(best.enhancement);
-          
           return currentEnhancementIndex < bestEnhancementIndex ? current : best;
         });
         
-        // Add all cards except the best to sell list
         for (const card of cards) {
-          if (card.id !== bestCard.id) {
-            cardsToSell.push(card);
-          }
+          if (card.id !== bestCard.id) cardsToSell.push(card);
         }
       }
     }
@@ -636,12 +630,15 @@ export default function Collection() {
       return sum + (variant?.sellPrice || 0);
     }, 0);
     
-    if (!confirm(`Keep 1 of each variant (best quality/enhancement per variant) and sell ${cardsToSell.length} duplicate cards for $${totalSellPrice.toFixed(2)}?`)) return;
+    if (!confirm(`Keep 1 of each variant and sell ${cardsToSell.length} duplicate cards for $${totalSellPrice.toFixed(2)}?`)) return;
     
     try {
-      // BATCH SELL
       const cardIds = cardsToSell.map(card => card.id);
-      await apiClient.batchSellCards(cardIds);
+      // Use batch sell - ONE API call instead of many
+      const result = await apiClient.batchSellCards(cardIds);
+      if (result.success) {
+        clientState.addCurrency(result.totalSellPrice);
+      }
       
       await refreshCollection();
       window.dispatchEvent(new Event('currency-updated'));
@@ -930,7 +927,7 @@ export default function Collection() {
                   localStorage.setItem('collectionViewMode', 'your');
                   refreshCollection();
                 }}
-                className={`px-2 py-1 rounded transition-colors ${viewMode === 'your' && isSignedIn ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+                className={`px-2 py-1 rounded transition-colors underline ${viewMode === 'your' && isSignedIn ? 'text-white text-2xl' : 'text-gray-400 hover:text-white text-2l'}`}
               >
                 Your
               </button>
@@ -941,7 +938,7 @@ export default function Collection() {
                   localStorage.setItem('collectionViewMode', 'entire');
                   groupAllCards(allCards);
                 }}
-                className={`px-2 py-1 rounded transition-colors ${viewMode === 'entire' ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+                className={`px-2 py-1 rounded transition-colors underline ${viewMode === 'entire' ? 'text-white text-2xl' : 'text-gray-400 hover:text-white text-2l'}`}
               >
                 Entire
               </button>
