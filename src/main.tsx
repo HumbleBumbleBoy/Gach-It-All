@@ -1,21 +1,22 @@
-import { StrictMode } from 'react';
+import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
 import App from './App.tsx';
-import Gacha from './pages/Gacha/Gacha.tsx';
-import Collection from './pages/Collection/Collection.tsx';
-import Inventory from './pages/Inventory/Inventory.tsx';
-import Shop from './pages/Shop/Shop.tsx';
-import Battle from './pages/Battle/Battle.tsx';
-import Market from './pages/Market/Market.tsx';
-import Stats from './pages/Stats/Stats.tsx';
-import Profile from './pages/Profile/Profile.tsx';
-import Settings from './pages/Settings/Settings.tsx';
-import SignInPage from './pages/Auth/SignIn';
-import SignUpPage from './pages/Auth/SignUp';
 import { ClerkProvider } from '@clerk/react';
 import Heartbeat from './components/Heartbeat.tsx';
+
+const Gacha = lazy(() => import('./pages/Gacha/Gacha.tsx'));
+const Collection = lazy(() => import('./pages/Collection/Collection.tsx'));
+const Inventory = lazy(() => import('./pages/Inventory/Inventory.tsx'));
+const Shop = lazy(() => import('./pages/Shop/Shop.tsx'));
+const Battle = lazy(() => import('./pages/Battle/Battle.tsx'));
+const Market = lazy(() => import('./pages/Market/Market.tsx'));
+const Stats = lazy(() => import('./pages/Stats/Stats.tsx'));
+const Profile = lazy(() => import('./pages/Profile/Profile.tsx'));
+const Settings = lazy(() => import('./pages/Settings/Settings.tsx'));
+const SignInPage = lazy(() => import('./pages/Auth/SignIn'));
+const SignUpPage = lazy(() => import('./pages/Auth/SignUp'));
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -28,20 +29,22 @@ createRoot(document.getElementById('root')!).render(
     >
       <Heartbeat />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/gacha" element={<Gacha />} />
-          <Route path="/collection" element={<Collection />} />
-          <Route path="/inventory" element={<Inventory />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/battle" element={<Battle />} />
-          <Route path="/market" element={<Market />} />
-          <Route path="/stats" element={<Stats />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/sign-in" element={<SignInPage />} />
-          <Route path="/sign-up" element={<SignUpPage />} />
-        </Routes>
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/" element={<App />} />
+            <Route path="/gacha" element={<Gacha />} />
+            <Route path="/collection" element={<Collection />} />
+            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/battle" element={<Battle />} />
+            <Route path="/market" element={<Market />} />
+            <Route path="/stats" element={<Stats />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/sign-in" element={<SignInPage />} />
+            <Route path="/sign-up" element={<SignUpPage />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </ClerkProvider>
   </StrictMode>,
