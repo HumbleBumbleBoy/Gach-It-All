@@ -5,7 +5,7 @@ import './index.css';
 import { ClerkProvider } from '@clerk/react';
 import Heartbeat from './components/Heartbeat.tsx';
 
-const App = lazy(() => import('./App.tsx'));
+import App from './App.tsx';
 const Gacha = lazy(() => import('./pages/Gacha/Gacha.tsx'));
 const Collection = lazy(() => import('./pages/Collection/Collection.tsx'));
 const Inventory = lazy(() => import('./pages/Inventory/Inventory.tsx'));
