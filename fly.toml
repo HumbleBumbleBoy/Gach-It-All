@@ -8,6 +8,9 @@ NODE_OPTIONS = "--max-old-space-size=768"
 [http_service]
 force_https = true
 internal_port = 3000
+min_machines_running = 1
+auto_start_machines = true
+auto_stop_machines = "stop"
 
 [build]
   [build.args]
