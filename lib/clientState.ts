@@ -4,12 +4,12 @@ class ClientState {
   private static instance: ClientState;
   private listeners: Map<string, Set<() => void>> = new Map();
   
-  // User data
   private _currency: number = 0;
   private _userStatus: string = 'STANDARD';
   private _userAchievements: any[] = [];
   private _achievements: any[] = [];
   private _initialized: boolean = false;
+  private _initPromise: Promise<void> | null = null;
   
   static getInstance() {
     if (!ClientState.instance) {
@@ -31,18 +31,43 @@ class ClientState {
   }
   
   async initialize() {
-    if (this._initialized) return;
+    // Return existing promise if already initializing
+    if (this._initPromise) {
+      return this._initPromise;
+    }
     
+    if (this._initialized) {
+      return Promise.resolve();
+    }
+    
+    this._initPromise = this._doInitialize();
+    return this._initPromise;
+  }
+  
+  private async _doInitialize() {
     try {
       const data = await apiClient.getAllUserData();
-      this._currency = data.currency ?? 0;
-      this._userStatus = data.userStatus ?? 'STANDARD';
-      this._userAchievements = data.userAchievements ?? [];
-      this._achievements = data.achievements ?? [];
+      
+      // Safe defaults if data is missing
+      this._currency = data?.currency ?? 0;
+      this._userStatus = data?.userStatus ?? 'STANDARD';
+      this._userAchievements = data?.userAchievements ?? [];
+      this._achievements = data?.achievements ?? [];
       this._initialized = true;
+      
       this.notify('all');
+      this.notify('currency');
+      this.notify('achievements');
     } catch (error) {
-      console.warn('Failed to initialize client state');
+      console.warn('Failed to initialize client state, using defaults');
+      // Set default values so the app still works
+      this._currency = 0;
+      this._userStatus = 'STANDARD';
+      this._userAchievements = [];
+      this._achievements = [];
+      this._initialized = true; // Mark as initialized even on failure
+    } finally {
+      this._initPromise = null;
     }
   }
   
@@ -55,21 +80,21 @@ class ClientState {
   
   // Setters
   addCurrency(amount: number) {
-    this._currency += amount;
+    this._currency = Math.round((this._currency + amount) * 100) / 100;
     this.notify('currency');
     // Fire and forget - update server in background
     apiClient.updateCurrency(amount).catch(() => {
       // Rollback on failure
-      this._currency -= amount;
+      this._currency = Math.round((this._currency - amount) * 100) / 100;
       this.notify('currency');
     });
   }
   
   removeCurrency(amount: number) {
-    this._currency -= amount;
+    this._currency = Math.round((this._currency - amount) * 100) / 100;
     this.notify('currency');
     apiClient.updateCurrency(-amount).catch(() => {
-      this._currency += amount;
+      this._currency = Math.round((this._currency + amount) * 100) / 100;
       this.notify('currency');
     });
   }
@@ -91,21 +116,21 @@ class ClientState {
     this.notify('achievements');
   }
   
-  // Get user progress for an achievement
   getUserProgress(achievementId: number) {
     const userAchievement = this._userAchievements.find(ua => ua.achievement_id === achievementId);
     return userAchievement || { progress: 0, completed_at: null };
   }
   
-  // Force refresh from server (use sparingly)
   async refresh() {
     try {
       const data = await apiClient.getAllUserData();
-      this._currency = data.currency ?? 0;
-      this._userStatus = data.userStatus ?? 'STANDARD';
-      this._userAchievements = data.userAchievements ?? [];
-      this._achievements = data.achievements ?? [];
+      this._currency = data?.currency ?? 0;
+      this._userStatus = data?.userStatus ?? 'STANDARD';
+      this._userAchievements = data?.userAchievements ?? [];
+      this._achievements = data?.achievements ?? [];
       this.notify('all');
+      this.notify('currency');
+      this.notify('achievements');
     } catch (error) {
       console.warn('Failed to refresh client state');
     }

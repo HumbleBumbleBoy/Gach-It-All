@@ -412,46 +412,56 @@ export default function Collection() {
     const rootMap = new Map();
     
     cards.forEach((card: any) => {
+      // Skip if card or cardTemplate is null
+      if (!card || !card.cardTemplate) return;
+      
       const templateId = card.card_template_id;
+      if (!templateId) return;
       
       if (!rootMap.has(templateId)) {
         rootMap.set(templateId, {
           templateId: templateId,
-          name: card.cardTemplate?.name,
-          image_url: card.cardTemplate?.image_url,
-          rarity: card.cardTemplate?.rarity,
-          description: card.cardTemplate?.description,
-          series: card.cardTemplate?.series,
-          type: card.cardTemplate?.type,
-          base_hp: card.cardTemplate?.base_hp,
-          base_atk: card.cardTemplate?.base_atk,
-          base_def: card.cardTemplate?.base_def,
-          base_price: card.cardTemplate?.base_price,
+          name: card.cardTemplate?.name || 'Unknown Card',
+          image_url: card.cardTemplate?.image_url || '',
+          rarity: card.cardTemplate?.rarity || 'COMMON',
+          description: card.cardTemplate?.description || '',
+          series: card.cardTemplate?.series || '',
+          type: card.cardTemplate?.type || '',
+          base_hp: card.cardTemplate?.base_hp || 0,
+          base_atk: card.cardTemplate?.base_atk || 0,
+          base_def: card.cardTemplate?.base_def || 0,
+          base_price: card.cardTemplate?.base_price || 0,
           totalQuantity: 0,
           variants: []
         });
       }
         
       const root = rootMap.get(templateId);
+      if (!root) return;
+      
       root.totalQuantity++;
       
       const variantKey = `${card.quality}-${card.enhancement}`;
       let variant = root.variants.find((v: any) => v.key === variantKey);
       
       if (!variant) {
-        const cardPrice = calculateCardPrice(card.cardTemplate?.base_price ?? 0, card.quality, card.enhancement);
+        const cardPrice = calculateCardPrice(
+          card.cardTemplate?.base_price ?? 0, 
+          card.quality || 'REGULAR', 
+          card.enhancement || 'BASIC'
+        );
         const sellPrice = cardPrice * 0.8;
         const stats = calculateCardStats(
           card.cardTemplate?.base_hp ?? 0,
           card.cardTemplate?.base_atk ?? 0,
           card.cardTemplate?.base_def ?? 0,
-          card.enhancement
+          card.enhancement || 'BASIC'
         );
         
         variant = {
           key: variantKey,
-          quality: card.quality,
-          enhancement: card.enhancement,
+          quality: card.quality || 'REGULAR',
+          enhancement: card.enhancement || 'BASIC',
           quantity: 0,
           cards: [],
           sellPrice: sellPrice,

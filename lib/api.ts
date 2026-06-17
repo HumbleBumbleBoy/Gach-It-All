@@ -277,9 +277,31 @@ export const apiClient = {
   },
 
   async getAllUserData() {
-    const response = await fetch(`/api/user/all-data`, {
-      credentials: 'include',
-    });
-    return response.json();
-  },
+    try {
+      const response = await fetchWithTimeout(`/api/user/all-data`, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        console.warn(`API returned ${response.status} for /api/user/all-data`);
+        // Return safe defaults instead of throwing
+        return {
+          currency: 0,
+          userStatus: 'STANDARD',
+          userAchievements: [],
+          achievements: []
+        };
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.warn('Failed to fetch all user data, using defaults:', error);
+      return {
+        currency: 0,
+        userStatus: 'STANDARD',
+        userAchievements: [],
+        achievements: []
+      };
+    }
+  }
 };

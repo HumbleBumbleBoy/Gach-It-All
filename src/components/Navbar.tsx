@@ -84,28 +84,30 @@ export default function Navbar() {
 
   useEffect(() => {
     if (isSignedIn && user) {
-      // Initialize client state (only once)
-      clientState.initialize();
+      // Initialize client state with proper error handling
+      clientState.initialize().catch(() => {
+        // Already handled in clientState, but just in case
+      });
       
-      // Subscribe to changes
+      // Subscribe to changes - with safe access
       const unsubscribeCurrency = clientState.subscribe('currency', () => {
-        setCurrency(clientState.currency);
+        setCurrency(clientState.currency || 0);
       });
       
       const unsubscribeStatus = clientState.subscribe('userStatus', () => {
-        setUserStatus(clientState.userStatus);
+        setUserStatus(clientState.userStatus || 'STANDARD');
       });
       
       const unsubscribeAchievements = clientState.subscribe('achievements', () => {
-        setAchievements(clientState.achievements);
-        setUserAchievements(clientState.userAchievements);
+        setAchievements(clientState.achievements || []);
+        setUserAchievements(clientState.userAchievements || []);
       });
       
-      // Set initial values
-      setCurrency(clientState.currency);
-      setUserStatus(clientState.userStatus);
-      setAchievements(clientState.achievements);
-      setUserAchievements(clientState.userAchievements);
+      // Set initial values with safe defaults
+      setCurrency(clientState.currency || 0);
+      setUserStatus(clientState.userStatus || 'STANDARD');
+      setAchievements(clientState.achievements || []);
+      setUserAchievements(clientState.userAchievements || []);
       
       return () => {
         unsubscribeCurrency();
