@@ -303,5 +303,15 @@ export const apiClient = {
         achievements: []
       };
     }
+  },
+
+  async checkCompletionsBatch(cardTemplateIds: number[]) {
+    const response = await fetch('/api/user/check-completions-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cardTemplateIds }),
+      credentials: 'include'
+    });
+    return response.json();
   }
 };

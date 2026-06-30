@@ -135,27 +135,11 @@ export default function Collection() {
 
   useEffect(() => {
     localStorage.setItem('collectionSortBy', sortBy);
-  }, [sortBy]);
-
-  useEffect(() => {
     localStorage.setItem('collectionSortDirection', sortDirection);
-  }, [sortDirection]);
-
-  useEffect(() => {
     localStorage.setItem('collectionShowOnlyFavorites', String(showOnlyFavorites));
-  }, [showOnlyFavorites]);
-
-  useEffect(() => {
     localStorage.setItem('collectionPriorityEnhancements', String(priorityEnhancements));
-  }, [priorityEnhancements]);
-
-  useEffect(() => {
     localStorage.setItem('collectionVariantSortDirection', variantSortDirection);
-  }, [variantSortDirection]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [sortBy, sortDirection, showOnlyFavorites, viewMode]);
+  }, [sortBy, sortDirection, showOnlyFavorites, priorityEnhancements, variantSortDirection]);
 
   // Initialize totals from allCards
   useEffect(() => {
@@ -178,46 +162,53 @@ export default function Collection() {
   useEffect(() => {
     if (!isSignedIn || !rootCards.length) return;
     
-    const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
-    const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
-    
     const checkCompletions = async () => {
+      const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
+      const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
+      
+      const cardsToCheck: number[] = [];
+      
       for (const rootCard of rootCards) {
+        if (completedRewardsGiven.has(rootCard.templateId)) continue;
+        
         const hasAllVariants = allQualities.every(quality =>
           allEnhancements.every(enhancement => {
-            const variant = rootCard.variants?.find((v: any) => 
+            const variant = rootCard.variants?.find((v: any) =>
               v.quality === quality && v.enhancement === enhancement
             );
             return variant && variant.quantity > 0;
           })
         );
         
-        if (hasAllVariants && !completedRewardsGiven.has(rootCard.templateId)) {
-          try {
-            const data = await apiClient.checkCardCompletion(rootCard.templateId);
+        if (hasAllVariants) {
+          cardsToCheck.push(rootCard.templateId);
+        }
+      }
+      
+      if (cardsToCheck.length > 0) {
+        try {
+          const data = await apiClient.checkCompletionsBatch(cardsToCheck);
+          
+          if (data.rewarded && data.rewarded.length > 0) {
+            setCompletedRewardsGiven(prev => new Set([...prev, ...data.rewarded]));
             
-            if (data.rewarded) {
-              setCompletedRewardsGiven(prev => new Set([...prev, rootCard.templateId]));
-              
-              // Show toast
-              const toast = document.createElement('div');
-              toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-in slide-in-from-right duration-500';
-              toast.textContent = `Completed "${rootCard.name}"! +100 currency!`;
-              document.body.appendChild(toast);
-              setTimeout(() => toast.remove(), 3000);
-              
-              // Refresh currency display
-              window.dispatchEvent(new Event('currency-updated'));
-            }
-          } catch (error) {
-            console.error('Failed to check completion:', error);
+            // Show one toast for all
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-in slide-in-from-right duration-500';
+            toast.textContent = `Completed ${data.rewarded.length} card${data.rewarded.length > 1 ? 's' : ''}! +$${data.amount} currency!`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+            
+            window.dispatchEvent(new Event('currency-updated'));
           }
+        } catch (error) {
+          console.error('Failed to check completions:', error);
         }
       }
     };
     
     checkCompletions();
-  }, [rootCards, isSignedIn, completedRewardsGiven]);
+}, [rootCards, isSignedIn, completedRewardsGiven]);
 
   useEffect(() => {
     if (!isSignedIn || rootCards.length === 0) {

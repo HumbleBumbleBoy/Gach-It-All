@@ -136,17 +136,20 @@ export default function Navbar() {
         eventSource.onmessage = async (event) => {
           try {
             const data = JSON.parse(event.data);
+            
+            // 🔥 FIXED: Use data directly from SSE instead of fetching again
             setToast({ show: true, achievement: data.achievement, reward: data.reward });
             
-            const [newCurrency, newUserAchievements] = await Promise.all([
-              apiClient.getCurrency(),
-              apiClient.getUserAchievements()
-            ]);
+            if (data.currency !== undefined) {
+              setCurrency(data.currency);
+            }
             
-            setCurrency(newCurrency.currency ?? 0);
-            setUserAchievements(newUserAchievements.userAchievements || []);
+            if (data.achievements) {
+              setUserAchievements(data.achievements);
+            }
             
-            clientState.refresh()
+            // Still refresh clientState as a fallback
+            clientState.refresh();
             setTimeout(() => setToast(null), 5000);
           } catch (err) {
             // Silent fail
