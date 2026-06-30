@@ -436,6 +436,7 @@ async function generatePackCards(pack: any, userId: number) {
   let availableCards: any[] = await getCachedCardTemplates();
   const packRarities: string[] = [];
   
+  // Filter available cards based on pack settings
   if (pack.included_series && Array.isArray(pack.included_series)) {
     availableCards = availableCards.filter((card: any) => pack.included_series.includes(card.series));
   }
@@ -469,6 +470,8 @@ async function generatePackCards(pack: any, userId: number) {
   const remainingCards = pack.cards_count - guaranteedCards.length;
   const cardsToCreate: any[] = [];
   
+  const cacheUpdates = new Map<number, any>();
+  
   for (let i = 0; i < remainingCards; i++) {
     const rarity = determineRarity(pack);
     const cardsOfRarity = availableCards.filter((card: any) => card.rarity === rarity);
@@ -485,7 +488,8 @@ async function generatePackCards(pack: any, userId: number) {
         def: selectedCard.base_def || undefined,
         price: selectedCard.base_price || undefined
       });
-      await prisma.cardTemplates.update({
+      
+      prisma.cardTemplates.update({
         where: { id: selectedCard.id },
         data: {
           base_hp: fallbackStats.hp,
@@ -493,13 +497,23 @@ async function generatePackCards(pack: any, userId: number) {
           base_def: fallbackStats.def,
           base_price: fallbackStats.price
         }
-      });
-      updateCardInCache(selectedCard.id, fallbackStats);
+      }).catch(() => {}); // Fire and forget
+      
+      // Track for cache update
+      cacheUpdates.set(selectedCard.id, fallbackStats);
+      
+      // Update the local copy for this iteration
       selectedCard = { ...selectedCard, ...fallbackStats };
+
+      const idx = availableCards.findIndex(c => c.id === selectedCard.id);
+      if (idx !== -1) {
+        availableCards[idx] = { ...availableCards[idx], ...fallbackStats };
+      }
     }
     
     packRarities.push(selectedCard.rarity);
     
+    // Quality and enhancement selection (same as before)
     const qualityRandom = Math.random() * 100;
     let quality: Quality = Quality.REGULAR;
     let qualityCumulative = 0;
@@ -536,8 +550,7 @@ async function generatePackCards(pack: any, userId: number) {
       enhancement,
     });
   }
-  
-  // Generate guaranteed cards
+
   for (let guaranteedCard of guaranteedCards) {
     const needsFallback = !guaranteedCard.base_hp || !guaranteedCard.base_atk || !guaranteedCard.base_def || !guaranteedCard.base_price;
     if (needsFallback) {
@@ -547,7 +560,8 @@ async function generatePackCards(pack: any, userId: number) {
         def: guaranteedCard.base_def || undefined,
         price: guaranteedCard.base_price || undefined
       });
-      await prisma.cardTemplates.update({
+      
+      prisma.cardTemplates.update({
         where: { id: guaranteedCard.id },
         data: {
           base_hp: fallbackStats.hp,
@@ -555,11 +569,18 @@ async function generatePackCards(pack: any, userId: number) {
           base_def: fallbackStats.def,
           base_price: fallbackStats.price
         }
-      });
-      updateCardInCache(guaranteedCard.id, fallbackStats);
+      }).catch(() => {});
+      
+      cacheUpdates.set(guaranteedCard.id, fallbackStats);
       guaranteedCard = { ...guaranteedCard, ...fallbackStats };
+      
+      const idx = availableCards.findIndex(c => c.id === guaranteedCard.id);
+      if (idx !== -1) {
+        availableCards[idx] = { ...availableCards[idx], ...fallbackStats };
+      }
     }
     
+    // Quality and enhancement for guaranteed cards
     const qualityRandom = Math.random() * 100;
     let quality: Quality = Quality.REGULAR;
     let qualityCumulative = 0;
@@ -598,7 +619,16 @@ async function generatePackCards(pack: any, userId: number) {
     });
   }
   
-  // One transaction to create all cards
+  if (cachedCardTemplates && cacheUpdates.size > 0) {
+    for (const [cardId, updates] of cacheUpdates) {
+      const idx = cachedCardTemplates.findIndex(c => c.id === cardId);
+      if (idx !== -1) {
+        cachedCardTemplates[idx] = { ...cachedCardTemplates[idx], ...updates };
+      }
+    }
+  }
+  
+  // Create all cards in one transaction
   const createdCards = await prisma.$transaction(
     cardsToCreate.map((cardData: any) =>
       prisma.userCards.create({
@@ -608,15 +638,14 @@ async function generatePackCards(pack: any, userId: number) {
     )
   );
   
-  // Update unique cards count
-  const uniqueTemplates = await prisma.userCards.findMany({
-    where: { user_id: userId },
-    select: { card_template_id: true },
-    distinct: ['card_template_id']
+  const uniqueCountResult = await prisma.userCards.groupBy({
+      by: ['card_template_id'],
+      where: { user_id: userId },
   });
+  const uniqueCount = uniqueCountResult.length;
   await prisma.userStats.update({
     where: { user_id: userId },
-    data: { unique_cards: uniqueTemplates.length }
+    data: { unique_cards: uniqueCount }
   });
 
   const allCardAchievements = await prisma.achievement.findMany({
@@ -626,17 +655,21 @@ async function generatePackCards(pack: any, userId: number) {
       }
     }
   });
-  
-  const allExistingAchievements = await prisma.userAchievement.findMany({
-    where: { user_id: userId }
+
+  const allAchievementIds = allCardAchievements.map(a => a.id);
+  const existingUserAchievements = await prisma.userAchievement.findMany({
+    where: {
+      user_id: userId,
+      achievement_id: { in: allAchievementIds }
+    }
   });
-  const existingAchievementMap = new Map(allExistingAchievements.map(ea => [ea.achievement_id, ea]));
+  const existingAchievementMap = new Map(existingUserAchievements.map(ea => [ea.achievement_id, ea]));
   
-  // Check LUCKY_PULL achievements
-  const rarityCounts = packRarities.reduce<Record<string, number>>((acc, rarity) => {
-    acc[rarity] = (acc[rarity] || 0) + 1;
-    return acc;
-  }, {});
+  // Check LUCKY_PULL
+  const rarityCounts: Record<string, number> = {};
+  for (const r of packRarities) {
+    rarityCounts[r] = (rarityCounts[r] || 0) + 1;
+  }
   
   const luckyPullAchievements = await prisma.achievement.findMany({
     where: { condition: Condition.LUCKY_PULL }
@@ -644,7 +677,7 @@ async function generatePackCards(pack: any, userId: number) {
   
   for (const achievement of luckyPullAchievements) {
     const targetRarity = achievement.value_string;
-    if (targetRarity && rarityCounts[targetRarity] >= 2) {
+    if (targetRarity && (rarityCounts[targetRarity] || 0) >= 2) {
       const existing = existingAchievementMap.get(achievement.id);
       if (!existing || !existing.completed_at) {
         await grantReward(userId, achievement.reward_type, achievement.reward_value);
@@ -653,40 +686,31 @@ async function generatePackCards(pack: any, userId: number) {
           update: { completed_at: new Date(), progress: 100 },
           create: { user_id: userId, achievement_id: achievement.id, progress: 100, completed_at: new Date() }
         });
-        const userData = await prisma.user.findUnique({ where: { id: userId }, select: { clerkId: true } });
-        if (userData) {
-          const [updatedUser, updatedAchievements] = await Promise.all([
-            prisma.user.findUnique({ where: { id: userId }, select: { currency: true } }),
-            prisma.userAchievement.findMany({ where: { user_id: userId } })
-          ]);
-          sendAchievementNotification(userData.clerkId, achievement.name, `${achievement.reward_type}: ${achievement.reward_value}`, updatedUser?.currency ?? 0, updatedAchievements);
-        }
       }
     }
   }
   
-  // Check CARD_SET_COMPLETION
-  const checkedTemplates = new Set<number>();
-  const allUserCards = await prisma.userCards.findMany({
-    where: { user_id: userId },
-    select: { card_template_id: true, quality: true, enhancement: true }
-  });
-  const cardsByTemplate = new Map<number, Set<string>>();
-  for (const card of allUserCards) {
-    if (!cardsByTemplate.has(card.card_template_id)) cardsByTemplate.set(card.card_template_id, new Set());
-    cardsByTemplate.get(card.card_template_id)!.add(`${card.quality}-${card.enhancement}`);
-  }
-  
+  const newCardTemplateIds = [...new Set(createdCards.map(c => c.card_template_id))];
   const allQualities = ['TARNISHED', 'POOR', 'REGULAR', 'GOOD', 'CRISP'];
   const allEnhancements = ['BASIC', 'FOILED', 'SHINY', 'SIGNED'];
   
-  for (const card of createdCards) {
-    const templateId = card.card_template_id;
-    if (checkedTemplates.has(templateId)) continue;
-    checkedTemplates.add(templateId);
+  for (const templateId of newCardTemplateIds) {
+    // Count distinct variants user has for this specific template
+    const variantCount = await prisma.userCards.count({
+      where: { user_id: userId, card_template_id: templateId }
+    });
     
-    const userVariants = cardsByTemplate.get(templateId) || new Set();
-    if (userVariants.size >= allQualities.length * allEnhancements.length) {
+    // Quick check: if they don't have at least 20 cards of this template, can't be complete
+    if (variantCount < 20) continue;
+    
+    // Check if they have all 20 unique variants
+    const variants = await prisma.userCards.groupBy({
+      by: ['quality', 'enhancement'],
+      where: { user_id: userId, card_template_id: templateId },
+    });
+    
+    const totalVariants = allQualities.length * allEnhancements.length;
+    if (variants.length >= totalVariants) {
       const setCompletionAchievements = await prisma.achievement.findMany({
         where: { condition: Condition.CARD_SET_COMPLETION }
       });
@@ -704,6 +728,7 @@ async function generatePackCards(pack: any, userId: number) {
     }
   }
   
+  // Check card-specific achievements for new cards
   for (const card of createdCards) {
     const template = card.cardTemplate;
     const name = template.name || '';
@@ -712,37 +737,15 @@ async function generatePackCards(pack: any, userId: number) {
     
     for (const ach of allCardAchievements) {
       let isComplete = false;
-      let currentValue = 0;
       let targetValue = ach.value_int ?? ach.value_float ?? 0;
       
       switch (ach.condition) {
-        case 'CARD_HEALTH':
-          currentValue = template.base_hp ?? 0;
-          isComplete = currentValue >= targetValue;
-          break;
-        case 'CARD_STRENGTH':
-          currentValue = template.base_atk ?? 0;
-          isComplete = currentValue >= targetValue;
-          break;
-        case 'CARD_DEFENCE':
-          currentValue = template.base_def ?? 0;
-          isComplete = currentValue >= targetValue;
-          break;
-        case 'CARD_NAME_LENGTH':
-          currentValue = charCount;
-          isComplete = currentValue >= targetValue;
-          break;
-        case 'CARD_NAME_WORDS':
-          currentValue = wordCount;
-          isComplete = currentValue >= targetValue;
-          break;
-        case 'CARD_RARITY':
-          if (ach.value_string === template.rarity) {
-            isComplete = true;
-            currentValue = 1;
-            targetValue = 1;
-          }
-          break;
+        case 'CARD_HEALTH': isComplete = (template.base_hp ?? 0) >= targetValue; break;
+        case 'CARD_STRENGTH': isComplete = (template.base_atk ?? 0) >= targetValue; break;
+        case 'CARD_DEFENCE': isComplete = (template.base_def ?? 0) >= targetValue; break;
+        case 'CARD_NAME_LENGTH': isComplete = charCount >= targetValue; break;
+        case 'CARD_NAME_WORDS': isComplete = wordCount >= targetValue; break;
+        case 'CARD_RARITY': isComplete = (ach.value_string === template.rarity); break;
       }
       
       if (isComplete) {
@@ -1133,14 +1136,13 @@ app.post('/api/cards/sell', async (req, res) => {
         }),
         tx.userCards.delete({ where: { id: cardId } })
       ]);
-      const uniqueTemplates = await tx.userCards.findMany({
+      const uniqueCountResult = await tx.userCards.groupBy({
+        by: ['card_template_id'],
         where: { user_id: card.user.id },
-        select: { card_template_id: true },
-        distinct: ['card_template_id']
       });
       await tx.userStats.update({
         where: { user_id: card.user.id },
-        data: { unique_cards: uniqueTemplates.length }
+        data: { unique_cards: uniqueCountResult.length }
       });
       return { sellPrice, newCurrency: card.user.currency + sellPrice, userId: card.user.id };
     });
@@ -1184,14 +1186,13 @@ app.post('/api/cards/batch-sell', async (req, res) => {
         }),
         tx.userCards.deleteMany({ where: { id: { in: cardIds } } })
       ]);
-      const uniqueTemplates = await tx.userCards.findMany({
+      const uniqueCountResult = await tx.userCards.groupBy({
+        by: ['card_template_id'],
         where: { user_id: cards[0].user.id },
-        select: { card_template_id: true },
-        distinct: ['card_template_id']
       });
       await tx.userStats.update({
         where: { user_id: cards[0].user.id },
-        data: { unique_cards: uniqueTemplates.length }
+        data: { unique_cards: uniqueCountResult.length }
       });
       return { totalSellPrice, cardCount: cards.length, userId: cards[0].user.id };
     });
@@ -1266,15 +1267,14 @@ app.post('/api/gacha/pack', async (req, res) => {
       data: { total_pulls: { increment: 1 } }
     }),
     (async () => {
-      const uniqueCardTemplates = await prisma.userCards.findMany({
+      const uniqueCountResult = await prisma.userCards.groupBy({
+        by: ['card_template_id'],
         where: { user_id: user.id },
-        select: { card_template_id: true },
-        distinct: ['card_template_id']
-      });
-      await prisma.userStats.update({
+    });
+    await prisma.userStats.update({
         where: { user_id: user.id },
-        data: { unique_cards: uniqueCardTemplates.length }
-      });
+        data: { unique_cards: uniqueCountResult.length }
+    });
     })()
   ]);
   

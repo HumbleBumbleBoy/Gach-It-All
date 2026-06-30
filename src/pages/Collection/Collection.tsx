@@ -295,16 +295,31 @@ export default function Collection() {
   // User-specific data
   useEffect(() => {
     if (isSignedIn && user) {
-      refreshCollection();
-      loadFavorites();
+      const loadData = async () => {
+        try {
+          // Load all cards FIRST
+          const allCardsData = await apiClient.getCards();
+          setAllCards(allCardsData.items || []);
+          
+          // Then load user's collection
+          const collectionData = await apiClient.getCollection();
+          setUserCards(collectionData.items || []);
+          calculateRarityProgress(collectionData.items || []);
+          groupByRootCard(collectionData.items || []);
+          
+          // Load favorites
+          const favData = await apiClient.getFavorites();
+          setFavorites(new Set(favData.favorites || []));
+        } catch (error) {
+          console.error('Failed to load collection data:', error);
+        }
+      };
+      
+      loadData();
     } else {
       setUserCards([]);
       setFavorites(new Set());
       setTotalValue(0);
-      if (viewMode === 'your') {
-        setViewMode('entire');
-        localStorage.setItem('collectionViewMode', 'entire');
-      }
     }
   }, [isSignedIn, user]);
 
