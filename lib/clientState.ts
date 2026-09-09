@@ -31,7 +31,6 @@ class ClientState {
   }
   
   async initialize() {
-    // Return existing promise if already initializing
     if (this._initPromise) {
       return this._initPromise;
     }
@@ -48,7 +47,6 @@ class ClientState {
     try {
       const data = await apiClient.getAllUserData();
       
-      // Safe defaults if data is missing
       this._currency = data?.currency ?? 0;
       this._userStatus = data?.userStatus ?? 'STANDARD';
       this._userAchievements = data?.userAchievements ?? [];
@@ -60,12 +58,11 @@ class ClientState {
       this.notify('achievements');
     } catch (error) {
       console.warn('Failed to initialize client state, using defaults');
-      // Set default values so the app still works
       this._currency = 0;
       this._userStatus = 'STANDARD';
       this._userAchievements = [];
       this._achievements = [];
-      this._initialized = true; // Mark as initialized even on failure
+      this._initialized = true;
     } finally {
       this._initPromise = null;
     }
@@ -78,25 +75,31 @@ class ClientState {
   get achievements() { return this._achievements; }
   get isInitialized() { return this._initialized; }
   
-  // Setters
+  // Setters - These should ONLY be used for non-purchase operations
   addCurrency(amount: number) {
     this._currency = Math.round((this._currency + amount) * 100) / 100;
     this.notify('currency');
-    // Fire and forget - update server in background
     apiClient.updateCurrency(amount).catch(() => {
-      // Rollback on failure
       this._currency = Math.round((this._currency - amount) * 100) / 100;
       this.notify('currency');
     });
   }
   
-  removeCurrency(amount: number) {
-    this._currency = Math.round((this._currency - amount) * 100) / 100;
+  setCurrency(amount: number) {
+    this._currency = Math.round(amount * 100) / 100;
     this.notify('currency');
-    apiClient.updateCurrency(-amount).catch(() => {
-      this._currency = Math.round((this._currency + amount) * 100) / 100;
+  }
+  
+  async refreshCurrency() {
+    try {
+      const data = await apiClient.getCurrency();
+      this._currency = data?.currency ?? 0;
       this.notify('currency');
-    });
+      return this._currency;
+    } catch (error) {
+      console.warn('Failed to refresh currency');
+      return this._currency;
+    }
   }
   
   updateAchievementProgress(achievementId: number, progress: number, isComplete: boolean) {

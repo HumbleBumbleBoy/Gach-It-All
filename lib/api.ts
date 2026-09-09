@@ -5,7 +5,6 @@ const requestCache = new Map();
 const CACHE_TTL = 30000;
 
 async function dedupeRequest(key: string, requestFn: () => Promise<any>, useCache = false) {
-  // Check cache first
   if (useCache && requestCache.has(key)) {
     const { data, timestamp } = requestCache.get(key);
     if (Date.now() - timestamp < CACHE_TTL) {
@@ -14,7 +13,6 @@ async function dedupeRequest(key: string, requestFn: () => Promise<any>, useCach
     requestCache.delete(key);
   }
   
-  // Then check for pending request
   if (pendingRequests.has(key)) {
     return pendingRequests.get(key);
   }
@@ -147,7 +145,7 @@ export const apiClient = {
     });
   },
 
-  async refreshAll() {      // update this as i go
+  async refreshAll() {
     const [currency, stats, achievements, userAchievements] = await Promise.all([
       this.getCurrency(),
       this.getUserStats(),
@@ -245,8 +243,15 @@ export const apiClient = {
     const result = await response.json();
   
     if (result.success) {
-      const price = data.price || 0;
-      clientState.removeCurrency(price);
+      try {
+        const currencyData = await this.getCurrency();
+        clientState.setCurrency(currencyData.currency || 0);
+      } catch (error) {
+        console.warn('Failed to refresh currency after purchase');
+        if (result.newCurrency !== undefined) {
+          clientState.setCurrency(result.newCurrency);
+        }
+      }
     }
     return result;
   },
@@ -284,7 +289,6 @@ export const apiClient = {
       
       if (!response.ok) {
         console.warn(`API returned ${response.status} for /api/user/all-data`);
-        // Return safe defaults instead of throwing
         return {
           currency: 0,
           userStatus: 'STANDARD',

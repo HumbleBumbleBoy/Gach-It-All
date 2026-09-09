@@ -2,6 +2,7 @@ import Navbar from '../../components/Navbar';
 import { useUser } from '@clerk/react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../../lib/api';
+import { clientState } from '../../../lib/clientState';
 
 interface ShopItem {
   id: number;
@@ -258,6 +259,7 @@ export default function Shop() {
           newPurchased.add(slot.id);
           setPurchasedSlots(newPurchased);
         }
+        
         if (result.reward?.type === 'pack') {
           message = `Pack purchased! Added to inventory.`;
         } else if (result.reward?.type === 'card') {
@@ -277,12 +279,24 @@ export default function Shop() {
           setPurchasedSlots(newPurchased);
         }
         
+        // The currency is already updated in apiClient.purchaseShopItem
+        // But dispatch the event to notify other components
+        window.dispatchEvent(new Event('currency-updated'));
+        window.dispatchEvent(new CustomEvent('achievements-updated'));
+        
+        // Refresh the currency one more time after a small delay to ensure consistency
+        setTimeout(async () => {
+          try {
+            await clientState.refreshCurrency();
+          } catch (e) {
+            // Silent fail
+          }
+        }, 500);
+        
         if (slot.type === 'CARD_SLOT' && !slot.limitOne) {
           await refreshCardSlot(slot);
         }
         
-        window.dispatchEvent(new Event('currency-updated'));
-        window.dispatchEvent(new CustomEvent('achievements-updated'));
       } else {
         setToast({ show: true, message: result.error || 'Purchase failed', type: 'error' });
         setTimeout(() => setToast(null), 3000);
