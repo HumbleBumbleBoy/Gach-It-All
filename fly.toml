@@ -1,5 +1,10 @@
+# fly.toml app configuration file generated for gatch-it-all on 2026-09-09T12:13:40Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
 app = "gatch-it-all"
-primary_region = "ams"
+primary_region = 'ams'
 
 [env]
 NODE_ENV = "production"
@@ -10,8 +15,17 @@ force_https = true
 internal_port = 3000
 min_machines_running = 1
 auto_start_machines = true
-auto_stop_machines = "stop"
+auto_stop_machines = true
 
 [build]
+
   [build.args]
     VITE_CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuZ2F0Y2hpdGFsbC5jb20k"
+
+[[vm]]
+  cpu_kind = 'shared'
+  cpus = 1
+  memory = '512mb'
+  memory_mb = 512
+  processes = ['app']
+  size = 'shared-cpu-1x'
