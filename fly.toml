@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for gatch-it-all on 2026-09-09T12:13:40Z
+# fly.toml app configuration file generated for gatch-it-all on 2026-09-10T13:15:54Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -25,7 +25,7 @@ auto_stop_machines = true
 [[vm]]
   cpu_kind = 'shared'
   cpus = 1
-  memory = '512mb'
-  memory_mb = 512
+  memory = '768mb'
+  memory_mb = 768
   processes = ['app']
   size = 'shared-cpu-1x'
