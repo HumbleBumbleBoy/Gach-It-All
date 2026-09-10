@@ -126,12 +126,14 @@ model CardTemplates {
 
 enum Series {
   CARD_GAMES
+  FRUITS
 }
 
 enum Type {
   DIGITAL
   VIDEO_GAME
   GAME
+  FOOD
 }
 
 enum Rarity {
