@@ -184,7 +184,7 @@ export default function Gacha() {
         isOpeningRef.current = false;
         openTimeoutRef.current = null;
       }
-    }, 1000);
+    }, 500);
   };
 
   const closeModal = () => {

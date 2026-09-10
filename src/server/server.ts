@@ -1205,7 +1205,7 @@ app.post('/api/cards/sell', async (req, res) => {
       const qualityMultipliers = { TARNISHED: 0.3, POOR: 0.66, REGULAR: 1, GOOD: 1.25, CRISP: 1.5 };
       const enhancementMultipliers = { BASIC: 1, FOILED: 1.25, SHINY: 1.5, SIGNED: 2 };
       const sellPrice = roundCurrency(card.cardTemplate.base_price *
-        (qualityMultipliers[card.quality] || 1) * (enhancementMultipliers[card.enhancement] || 1) * 0.9);
+        (qualityMultipliers[card.quality] || 1) * (enhancementMultipliers[card.enhancement] || 1) * 0.8);
       await Promise.all([
         tx.user.update({ where: { id: card.user.id }, data: { currency: { increment: sellPrice } } }),
         tx.userStats.update({
@@ -1254,7 +1254,7 @@ app.post('/api/cards/batch-sell', async (req, res) => {
       let totalSellPrice = 0;
       for (const card of cards) {
         totalSellPrice += roundCurrency(card.cardTemplate.base_price *
-          (qualityMultipliers[card.quality] || 1) * (enhancementMultipliers[card.enhancement] || 1) * 0.9);
+          (qualityMultipliers[card.quality] || 1) * (enhancementMultipliers[card.enhancement] || 1) * 0.8);
       }
       await Promise.all([
         tx.user.update({ where: { id: cards[0].user.id }, data: { currency: { increment: totalSellPrice } } }),

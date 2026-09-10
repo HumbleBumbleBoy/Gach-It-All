@@ -307,7 +307,7 @@ export default function PackOpeningModal({ isOpen, cards, onClose, existingCardI
         {allFlipped && (
           <button
             onClick={onClose}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-600 hover:bg-red-700 text-white px-7 py-2 rounded-lg transition-colors z-30"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-600 hover:bg-red-700 text-white px-7 py-2 rounded-lg transition-colors z-1000"
           >
             Close
           </button>

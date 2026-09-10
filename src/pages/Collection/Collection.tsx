@@ -561,8 +561,6 @@ export default function Collection() {
       if (updatedVariants.length === 0) {
         setSelectedRootCard(null);
       }
-
-      clientState.addCurrency(variant.sellPrice);
     } catch (error) {
       console.error('Failed to sell card:', error);
       alert('Failed to sell card');
@@ -586,8 +584,6 @@ export default function Collection() {
       if (updatedVariants.length === 0) {
         setSelectedRootCard(null);
       }
-
-      clientState.addCurrency(variant.sellPrice);
     } catch (error) {
       console.error('Failed to sell cards:', error);
       alert('Failed to sell cards');
@@ -641,9 +637,7 @@ export default function Collection() {
     try {
       const cardIds = cardsToSell.map(card => card.id);
       const result = await apiClient.batchSellCards(cardIds);
-      if (result.success) {
-        clientState.addCurrency(result.totalSellPrice);
-      }
+      if (!result.success) throw new Error(result.error || 'Batch sell failed');
       
       await refreshCollection();
       window.dispatchEvent(new Event('currency-updated'));
@@ -652,6 +646,77 @@ export default function Collection() {
       setSelectedVariants([]);
     } catch (error) {
       console.error('Failed to sell cards:', error);
+      alert('Failed to sell cards');
+    }
+  };
+
+  const sellAllUntilOneEveryCard = async () => {
+    if (!rootCards.length) return;
+
+    const qualityOrderLocal = ['CRISP', 'GOOD', 'REGULAR', 'POOR', 'TARNISHED'];
+    const enhancementOrderLocal = ['SIGNED', 'SHINY', 'FOILED', 'BASIC'];
+
+    const cardsToSell: any[] = [];
+    let totalSellPrice = 0;
+
+    for (const rootCard of rootCards) {
+      // Group this card's user cards by variant key
+      const variantMap = new Map<string, any[]>();
+      for (const variant of rootCard.variants || []) {
+        for (const card of variant.cards || []) {
+          const key = `${card.quality}-${card.enhancement}`;
+          if (!variantMap.has(key)) variantMap.set(key, []);
+          variantMap.get(key)!.push(card);
+        }
+      }
+
+      for (const [, cards] of variantMap) {
+        if (cards.length <= 1) continue;
+
+        // Pick the "best" card to keep (same rule as the single-card version)
+        const bestCard = cards.reduce((best: any, current: any) => {
+          const cq = qualityOrderLocal.indexOf(current.quality);
+          const bq = qualityOrderLocal.indexOf(best.quality);
+          if (cq < bq) return current;
+          if (cq > bq) return best;
+          const ce = enhancementOrderLocal.indexOf(current.enhancement);
+          const be = enhancementOrderLocal.indexOf(best.enhancement);
+          return ce < be ? current : best;
+        });
+
+        for (const card of cards) {
+          if (card.id === bestCard.id) continue;
+          cardsToSell.push(card);
+          // price each duplicate using the same sellPrice already computed
+          const variant = rootCard.variants.find((v: any) =>
+            v.cards.some((c: any) => c.id === card.id)
+          );
+          totalSellPrice += variant?.sellPrice || 0;
+        }
+      }
+    }
+
+    if (cardsToSell.length === 0) {
+      alert('You already have only 1 of each variant. Nothing to sell.');
+      return;
+    }
+
+    if (!confirm(
+      `Keep 1 of every variant across your ENTIRE collection and sell ${cardsToSell.length} duplicate cards for ~$${totalSellPrice.toFixed(2)}?`
+    )) return;
+
+    try {
+      const cardIds = cardsToSell.map(c => c.id);
+      const result = await apiClient.batchSellCards(cardIds);
+      if (!result.success) throw new Error(result.error || 'Batch sell failed');
+
+      await refreshCollection();
+      window.dispatchEvent(new Event('currency-updated'));
+      window.dispatchEvent(new CustomEvent('achievements-updated'));
+      setSelectedRootCard(null);
+      setSelectedVariants([]);
+    } catch (error) {
+      console.error('Failed to sell all duplicates:', error);
       alert('Failed to sell cards');
     }
   };
@@ -959,6 +1024,16 @@ export default function Collection() {
               <span>Total value: ${totalValue.toFixed(2)}</span>
               {completedCardsCount > 0 && <span>Completed cards: {completedCardsCount}</span>}
             </div>
+          )}
+
+          {viewMode === 'your' && isSignedIn && (
+            <button
+              onClick={sellAllUntilOneEveryCard}
+              className="w-40 px-3 py-1 text-xs rounded transition-colors bg-red-700 hover:bg-red-800 text-white"
+              title="Keep 1 of every variant across your entire collection"
+            >
+              Sell All Duplicates
+            </button>
           )}
         </div>
 
