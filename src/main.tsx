@@ -12,6 +12,7 @@ const Inventory = lazy(() => import('./pages/Inventory/Inventory.tsx'));
 const Shop = lazy(() => import('./pages/Shop/Shop.tsx'));
 const Battle = lazy(() => import('./pages/Battle/Battle.tsx'));
 const Market = lazy(() => import('./pages/Market/Market.tsx'));
+const Leaderboard = lazy(() => import('./pages/Leaderboard/Leaderboard.tsx'));
 const Stats = lazy(() => import('./pages/Stats/Stats.tsx'));
 const Profile = lazy(() => import('./pages/Profile/Profile.tsx'));
 const Settings = lazy(() => import('./pages/Settings/Settings.tsx'));
@@ -79,6 +80,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/shop" element={<Shop />} />
               <Route path="/battle" element={<Battle />} />
               <Route path="/market" element={<Market />} />
+              <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/stats" element={<Stats />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/settings" element={<Settings />} />

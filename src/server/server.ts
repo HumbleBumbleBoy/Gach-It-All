@@ -51,6 +51,9 @@ const ACHIEVEMENTS_CACHE_TTL = 300000;
 let allAchievementsCache: any[] | null = null;
 let allAchievementsLastFetch = 0;
 const ALL_ACHIEVEMENTS_CACHE_TTL = 300000;
+type LeaderboardCategory = 'packs_opened' | 'currency' | 'cards_collected' | 'wins' | 'battle_rating' | 'play_time' | 'trades_completed';
+const leaderboardCache = new Map<string, { data: any[]; timestamp: number }>();
+const LEADERBOARD_CACHE_TTL = 5 * 60 * 1000;
 
 // Prevent recursive achievement checks
 const activeChecks = new Set<string>();
@@ -942,7 +945,7 @@ app.get('/api/user/inventory', async (req, res) => {
 app.get('/api/cards', async (_req, res) => {
   try {
     const cardTemplates = await getCachedCardTemplates();
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     res.json({ items: cardTemplates });
   } catch (error) {
     console.error('Error fetching card templates:', error);
@@ -1036,6 +1039,81 @@ app.post('/api/user/clear-all-data', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to reset all data' });
+  }
+});
+
+app.get('/api/leaderboard/:category', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  const category = req.params.category as LeaderboardCategory;
+  const validCategories: LeaderboardCategory[] = [
+    'packs_opened', 'currency', 'cards_collected', 'wins',
+    'battle_rating', 'play_time', 'trades_completed'
+  ];
+  if (!validCategories.includes(category)) {
+    return res.status(400).json({ error: 'Invalid category' });
+  }
+
+  const cached = leaderboardCache.get(category);
+  if (cached && (Date.now() - cached.timestamp) < LEADERBOARD_CACHE_TTL) {
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.json({ category, entries: cached.data });
+  }
+
+  try {
+    let entries: any[] = [];
+
+    if (category === 'currency') {
+      const users = await prisma.user.findMany({
+        take: 10,
+        orderBy: { currency: 'desc' },
+        select: {
+          id: true,
+          username: true,
+          full_name: true,
+          currency: true
+        }
+      });
+      entries = users.map(u => ({
+        userId: u.id,
+        name: u.username || u.full_name || `User ${u.id}`,
+        value: u.currency
+      }));
+    } else {
+      const fieldMap: Record<string, string> = {
+        packs_opened: 'total_pulls',
+        cards_collected: 'unique_cards',
+        wins: 'wins',
+        battle_rating: 'battle_rating',
+        play_time: 'total_play_minutes',
+        trades_completed: 'trades_completed'
+      };
+      const field = fieldMap[category];
+
+      const stats = await prisma.userStats.findMany({
+        take: 10,
+        orderBy: { [field]: 'desc' },
+        include: {
+          user: {
+            select: { id: true, username: true, full_name: true }
+          }
+        }
+      });
+
+      entries = stats.map(s => ({
+        userId: s.user.id,
+        name: s.user.username || s.user.full_name || `User ${s.user.id}`,
+        value: (s as any)[field]
+      }));
+    }
+
+    leaderboardCache.set(category, { data: entries, timestamp: Date.now() });
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.json({ category, entries });
+  } catch (error) {
+    console.error('Leaderboard error:', error);
+    res.status(500).json({ error: 'Failed to fetch leaderboard' });
   }
 });
 

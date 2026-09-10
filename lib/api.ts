@@ -317,5 +317,12 @@ export const apiClient = {
       credentials: 'include'
     });
     return response.json();
-  }
+  },
+
+  async getLeaderboard(category: string) {
+    const response = await fetchWithTimeout(`/api/leaderboard/${category}`, {
+      credentials: 'include',
+    });
+    return response.json();
+  },
 };

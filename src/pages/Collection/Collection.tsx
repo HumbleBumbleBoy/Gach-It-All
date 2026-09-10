@@ -347,16 +347,6 @@ export default function Collection() {
     }
   }, []);
 
-  const loadFavorites = async () => {
-    if (!isSignedIn) return;
-    try {
-      const data = await apiClient.getFavorites();
-      setFavorites(new Set(data.favorites || []));
-    } catch (error) {
-      console.error('Failed to load favorites:', error);
-    }
-  };
-
   const fetchAllCards = async () => {
     try {
       const data = await apiClient.getCards();

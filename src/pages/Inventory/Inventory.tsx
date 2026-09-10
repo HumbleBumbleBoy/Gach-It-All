@@ -129,7 +129,6 @@ export default function Inventory() {
     <>
       <Navbar />
       <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-2xl font-bold mb-4">Inventory</h1>
         <div className="text-gray-400 mb-4">Total items: {items.length}</div>
         
         {items.length === 0 && <div className="text-gray-500">Nothing here yet...</div>}
