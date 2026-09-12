@@ -534,6 +534,17 @@ export default function Navbar() {
                     </MenuItem>
                   </MenuItems>
                 </Menu>
+
+                <div className="shrink-0 items-center hidden sm:block ml-2">
+                  <Link to="https://ko-fi.com/humblebumble" target="_blank" rel="noopener noreferrer">
+                    <img
+                      title='Support me on Ko-Fi'
+                      alt="My Ko-Fi"
+                      src="/kofi_symbol.svg"
+                      className="h-6 w-auto"
+                    />
+                  </Link>
+                </div>
               </Show>
               
               <Show when="signed-out">
