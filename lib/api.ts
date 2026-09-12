@@ -325,4 +325,13 @@ export const apiClient = {
     });
     return response.json();
   },
+
+  async refreshShop() {
+    const response = await fetchWithTimeout(`/api/shop/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    return response.json();
+  },
 };

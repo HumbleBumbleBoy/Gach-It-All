@@ -97,7 +97,7 @@ export default function Shop() {
       }, 60000);
       return () => clearInterval(interval);
     }
-}, [isSignedIn]);
+  }, [isSignedIn]);
 
   const calculateRefreshTime = () => {
     const now = new Date();
@@ -381,6 +381,42 @@ export default function Shop() {
     }
   };
 
+  const handleRefreshShop = async () => {
+    if (!isSignedIn) {
+      setToast({ show: true, message: 'Please sign in first!', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await apiClient.refreshShop();
+
+      if (!result.success) {
+        setToast({ show: true, message: result.error || 'Refresh failed', type: 'error' });
+        setTimeout(() => setToast(null), 3000);
+        setLoading(false);
+        return;
+      }
+
+      // Clear client-side shop cache so loadShop() regenerates
+      localStorage.removeItem('shopItems');
+      localStorage.removeItem('shopLastRefresh');
+
+      await loadShop();
+      await clientState.refreshCurrency();
+
+      setToast({ show: true, message: 'Shop refreshed!', type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      console.error('Refresh failed:', error);
+      setToast({ show: true, message: 'Refresh failed!', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const row1Slots = SHOP_SLOTS.filter(s => s.section === 'row1');
   const row2Slots = SHOP_SLOTS.filter(s => {
     if (s.section !== 'row2') return false;
@@ -557,8 +593,20 @@ export default function Shop() {
     <>
       <Navbar />
       <main className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
+        <div className="mb-4 flex-col">
           <p className="text-gray-400">Items will refresh in {timeUntilRefresh}.</p>
+          <button
+            onClick={handleRefreshShop}
+            disabled={loading || !isSignedIn}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              loading || !isSignedIn
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
+            title="Reroll the shop for $5.00"
+          >
+            Refresh Shop ($5)
+          </button>
         </div>
 
         {row1Slots.length > 0 && (

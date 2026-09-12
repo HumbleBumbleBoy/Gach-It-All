@@ -1,9 +1,8 @@
 import Navbar from '../../components/Navbar';
 import { useUser } from '@clerk/react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { apiClient } from '../../../lib/api';
 import { ArrowUpIcon, ArrowDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { clientState } from '../../../lib/clientState';
 
 // Pricing multipliers
 const QUALITY_MULTIPLIERS = {
@@ -128,6 +127,16 @@ export default function Collection() {
     return (saved === 'unlocked' || saved === 'locked' || saved === 'all') ? saved : 'all';
   });
 
+  const [seriesFilter, setSeriesFilter] = useState<string>(() => {
+    const saved = localStorage.getItem('collectionSeriesFilter');
+    return saved || 'all';
+  });
+
+  const [typeFilter, setTypeFilter] = useState<string>(() => {
+    const saved = localStorage.getItem('collectionTypeFilter');
+    return saved || 'all';
+  });
+
   const [priorityEnhancements, setPriorityEnhancements] = useState(() => {
     const saved = localStorage.getItem('collectionPriorityEnhancements');
     return saved === 'true';
@@ -138,6 +147,20 @@ export default function Collection() {
     return (saved === 'asc' || saved === 'desc') ? saved : 'desc';
   });
 
+  const availableSeries = useMemo(() => {
+    const source = viewMode === 'your' && isSignedIn ? rootCards : allCards;
+    return Array.from(
+      new Set(source.map((c: any) => c.series).filter(Boolean))
+    ).sort() as string[];
+  }, [viewMode, isSignedIn, rootCards, allCards]);
+
+  const availableTypes = useMemo(() => {
+    const source = viewMode === 'your' && isSignedIn ? rootCards : allCards;
+    return Array.from(
+      new Set(source.map((c: any) => c.type).filter(Boolean))
+    ).sort() as string[];
+  }, [viewMode, isSignedIn, rootCards, allCards]);
+
   useEffect(() => {
     localStorage.setItem('collectionSortBy', sortBy);
     localStorage.setItem('collectionSortDirection', sortDirection);
@@ -145,8 +168,10 @@ export default function Collection() {
     localStorage.setItem('collectionPriorityEnhancements', String(priorityEnhancements));
     localStorage.setItem('collectionVariantSortDirection', variantSortDirection);
     localStorage.setItem('collectionUnlockFilter', unlockFilter);
-    localStorage.removeItem('collectionShowOnlyUnlocked'); // cleanup old key
-  }, [sortBy, sortDirection, showOnlyFavorites, priorityEnhancements, variantSortDirection, unlockFilter]);
+    localStorage.setItem('collectionSeriesFilter', seriesFilter);
+    localStorage.setItem('collectionTypeFilter', typeFilter);
+    localStorage.removeItem('collectionShowOnlyUnlocked');
+  }, [sortBy, sortDirection, showOnlyFavorites, priorityEnhancements, variantSortDirection, unlockFilter, seriesFilter, typeFilter]);
 
   // Initialize totals from allCards
   useEffect(() => {
@@ -743,6 +768,14 @@ export default function Collection() {
       filtered = filtered.filter(card => favorites.has(card.templateId));
     }
 
+    if (seriesFilter !== 'all') {
+      filtered = filtered.filter(card => card.series === seriesFilter);
+    }
+
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(card => card.type === typeFilter);
+    }
+
     if (viewMode === 'entire' && isSignedIn && unlockFilter !== 'all') {
       filtered = filtered.filter(card => {
         const owned = isCardOwned(card.templateId);
@@ -1102,6 +1135,31 @@ export default function Collection() {
               By ATK
             </button>
           </div>
+
+          <select
+            value={seriesFilter}
+            onChange={(e) => setSeriesFilter(e.target.value)}
+            className="px-2 py-1.5 text-xs rounded transition-colors cursor-pointer bg-gray-700 text-white"
+            title="Filter by series"
+          >
+            <option value="all">All Series</option>
+            {availableSeries.map((series) => (
+              <option key={series} value={series}>{series}</option>
+            ))}
+          </select>
+
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-2 py-1.5 text-xs rounded transition-colors cursor-pointer bg-gray-700 text-white"
+            title="Filter by type"
+          >
+            <option value="all">All Types</option>
+            {availableTypes.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+
           {isSignedIn && viewMode === 'entire' && (
             <select
               value={unlockFilter}

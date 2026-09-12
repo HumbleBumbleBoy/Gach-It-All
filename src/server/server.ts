@@ -1741,6 +1741,37 @@ app.get('/api/user/all-data', async (req, res) => {
   });
 });
 
+app.post('/api/shop/refresh', async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  const REFRESH_COST = 5;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: auth.userId },
+      select: { id: true, currency: true }
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (user.currency < REFRESH_COST) {
+      return res.status(400).json({
+        error: `Insufficient currency. Need $${REFRESH_COST.toFixed(2)}, have $${user.currency.toFixed(2)}`
+      });
+    }
+
+    await updateCurrency(user.id, REFRESH_COST, 'spend');
+
+    res.json({
+      success: true,
+      newCurrency: roundCurrency(user.currency - REFRESH_COST)
+    });
+  } catch (error) {
+    console.error('Shop refresh failed:', error);
+    res.status(500).json({ error: 'Failed to refresh shop' });
+  }
+});
+
 app.post('/webhooks/kofi', async (req, res) => {
   const payload = JSON.parse(req.body.data);
   const KOFI_TOKEN = process.env.KOFI_VERIFICATION_TOKEN;

@@ -13,7 +13,7 @@ export default function NewBadge({ variant, className = '' }: NewBadgeProps) {
   }
   return (
     <div className={`absolute -top-1 -left-1 z-30 bg-red-700 text-white text-[8px] font-bold px-1 py-0.5 ml-2 rounded ${className}`}>
-      new varient
+      new variant
     </div>
   );
 }
