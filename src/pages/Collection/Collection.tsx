@@ -123,6 +123,11 @@ export default function Collection() {
     return saved === 'true';
   });
 
+  const [unlockFilter, setUnlockFilter] = useState<'unlocked' | 'locked' | 'all'>(() => {
+    const saved = localStorage.getItem('collectionUnlockFilter');
+    return (saved === 'unlocked' || saved === 'locked' || saved === 'all') ? saved : 'all';
+  });
+
   const [priorityEnhancements, setPriorityEnhancements] = useState(() => {
     const saved = localStorage.getItem('collectionPriorityEnhancements');
     return saved === 'true';
@@ -139,7 +144,9 @@ export default function Collection() {
     localStorage.setItem('collectionShowOnlyFavorites', String(showOnlyFavorites));
     localStorage.setItem('collectionPriorityEnhancements', String(priorityEnhancements));
     localStorage.setItem('collectionVariantSortDirection', variantSortDirection);
-  }, [sortBy, sortDirection, showOnlyFavorites, priorityEnhancements, variantSortDirection]);
+    localStorage.setItem('collectionUnlockFilter', unlockFilter);
+    localStorage.removeItem('collectionShowOnlyUnlocked'); // cleanup old key
+  }, [sortBy, sortDirection, showOnlyFavorites, priorityEnhancements, variantSortDirection, unlockFilter]);
 
   // Initialize totals from allCards
   useEffect(() => {
@@ -735,6 +742,13 @@ export default function Collection() {
     if (showOnlyFavorites && isSignedIn) {
       filtered = filtered.filter(card => favorites.has(card.templateId));
     }
+
+    if (viewMode === 'entire' && isSignedIn && unlockFilter !== 'all') {
+      filtered = filtered.filter(card => {
+        const owned = isCardOwned(card.templateId);
+        return unlockFilter === 'unlocked' ? owned : !owned;
+      });
+    }
     
     switch (sortBy) {
       case 'rarity':
@@ -1088,6 +1102,17 @@ export default function Collection() {
               By ATK
             </button>
           </div>
+          {isSignedIn && viewMode === 'entire' && (
+            <select
+              value={unlockFilter}
+              onChange={(e) => setUnlockFilter(e.target.value as 'unlocked' | 'locked' | 'all')}
+              className={`px-2 py-1.5 text-xs rounded transition-colors cursor-pointer bg-gray-700 text-white`}
+            >
+              <option value="all">All</option>
+              <option value="unlocked">Unlocked</option>
+              <option value="locked">Locked</option>
+            </select>
+          )}
           {isSignedIn && (
             <button
               onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
@@ -1435,7 +1460,7 @@ export default function Collection() {
                   </div>
 
                   {selectedCardInfo && (
-                    <div className="hidden md:block w-80 border-l border-gray-700 flex flex-col shrink-0 overflow-y-auto max-h-[calc(85vh-200px)]">
+                    <div className="md:block w-80 border-l border-gray-700 flex flex-col shrink-0 overflow-y-auto max-h-[calc(85vh-200px)]">
                       <div className="p-4 border-b border-gray-700 shrink-0">
                         <div className="flex justify-between items-start">
                           <h3 className={`font-bold text-lg ${getRarityStyle(selectedCardInfo.rarity).textColor}`}>

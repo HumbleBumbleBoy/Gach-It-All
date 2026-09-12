@@ -1435,13 +1435,33 @@ app.post('/api/shop/purchase', async (req, res) => {
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    const oneTimeSlots = [1, 9, 10, 11, 12];
-    const isOneTime = oneTimeSlots.includes(slotId);
+    // Cooldown-based one-time slots (repurchasable after the cooldown)
+    const SLOT_COOLDOWNS_MS: Record<number, number> = {
+      1:  60 * 60 * 1000 * 24, // 24 hour
+      9:  60 * 60 * 1000, // 1 hour (mythic)
+      10: 60 * 60 * 1000,
+      11: 60 * 60 * 1000,
+      12: 60 * 60 * 1000,
+    };
+
+    const cooldownMs = SLOT_COOLDOWNS_MS[slotId];
+    const isOneTime = cooldownMs !== undefined;
+
     if (isOneTime) {
-      const existingPurchase = await prisma.shopPurchase.findFirst({
-        where: { user_id: user.id, slot_id: slotId }
+      const latestPurchase = await prisma.shopPurchase.findFirst({
+        where: { user_id: user.id, slot_id: slotId },
+        orderBy: { purchase_date: 'desc' },
       });
-      if (existingPurchase) return res.status(400).json({ error: 'You have already purchased this item' });
+      if (latestPurchase) {
+        const elapsed = Date.now() - new Date(latestPurchase.purchase_date).getTime();
+        if (elapsed < cooldownMs) {
+          const remaining = cooldownMs - elapsed;
+          const mins = Math.ceil(remaining / 60000);
+          return res.status(400).json({
+            error: `Available again in ~${mins} minute${mins === 1 ? '' : 's'}`,
+          });
+        }
+      }
     }
     if (user.currency < price) {
       return res.status(400).json({ error: `Insufficient currency. Need $${price}, have $${user.currency.toFixed(2)}` });

@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import NewBadge from './NewBadge';
+import { variantKey } from '../../lib/ownership';
 
 interface Card {
   id: number;
@@ -78,9 +80,15 @@ interface PackOpeningModalProps {
   cards: Card[];
   onClose: () => void;
   existingCardIds?: Set<number>;
+  ownedVariants?: Map<number, Set<string>>;
 }
 
-export default function PackOpeningModal({ isOpen, cards, onClose, existingCardIds = new Set() }: PackOpeningModalProps) {
+export default function PackOpeningModal({
+  isOpen,
+  cards,
+  onClose,
+  ownedVariants = new Map(),
+}: PackOpeningModalProps) {
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const [flippedCards, setFlippedCards] = useState<boolean[]>([]);
   const [_tooltipCard, setTooltipCard] = useState<{ card: Card; index: number } | null>(null);
@@ -225,11 +233,16 @@ export default function PackOpeningModal({ isOpen, cards, onClose, existingCardI
                       }`}
                       style={{ transform: 'rotateY(180deg)' }}
                     >
-                      {isFlipped && !existingCardIds.has(card.cardTemplate?.id ?? 0) && (
-                        <div className="fixed -top-1 bg-red-500 text-white text-[8px] font-bold px-1.5 py-1 z-20" style={{ animation: 'bounce 1.5s 1.5' }}>
-                          NEW!
-                        </div>
-                      )}
+                      {isFlipped && (() => {
+                        const templateId = card.cardTemplate?.id ?? 0;
+                        const owned = ownedVariants.get(templateId);
+                        const hasAnyVariant = !!owned && owned.size > 0;
+                        const hasThisVariant = owned?.has(variantKey(card.quality, card.enhancement));
+
+                        if (!hasAnyVariant) return <NewBadge variant="card" />;
+                        if (!hasThisVariant) return <NewBadge variant="variant" />;
+                        return null;
+                      })()}
                       {card.image_url || card.cardTemplate?.image_url ? (
                         <img 
                           src={card.image_url || card.cardTemplate?.image_url} 

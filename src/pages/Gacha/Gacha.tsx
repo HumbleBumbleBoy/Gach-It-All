@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/react';
 import { apiClient } from '../../../lib/api';
 import PackOpeningModal from '../../components/PackOpeningModal';
+import { loadOwnership } from '../../../lib/ownership';
 
 interface Pack {
   id: number;
@@ -19,6 +20,7 @@ export default function Gacha() {
   const [freePack, setFreePack] = useState<Pack | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [existingCardIds, setExistingCardIds] = useState<Set<number>>(new Set());
+  const [ownedVariants, setOwnedVariants] = useState<Map<number, Set<string>>>(new Map());
 
   const DrumRoll = useRef<HTMLAudioElement | null>(null);
   const PackOpened = useRef<HTMLAudioElement | null>(null);
@@ -99,9 +101,9 @@ export default function Gacha() {
 
   const loadExistingCards = async () => {
     try {
-      const collection = await apiClient.getCollection();
-      const existingIds = new Set<number>(collection.items.map((c: any) => c.card_template_id));
-      setExistingCardIds(existingIds);
+      const ownership = await loadOwnership();
+      setExistingCardIds(ownership.templateIds);
+      setOwnedVariants(ownership.variantsByTemplate);
     } catch (error) {
       console.error('Failed to load existing cards:', error);
     }
@@ -159,9 +161,6 @@ export default function Gacha() {
       try {
         const result = await apiClient.openPack(freePack?.id || 1);
         if (result.success && result.cards && result.cards.length > 0) {
-          const newCardIds = result.cards.map((card: any) => card.card_template_id);
-          setExistingCardIds(prev => new Set([...prev, ...newCardIds]));
-          
           stopDrumRoll();
           playSound(PackOpened);
           
@@ -220,6 +219,7 @@ export default function Gacha() {
         cards={openedCards}
         onClose={closeModal}
         existingCardIds={existingCardIds}
+        ownedVariants={ownedVariants}
       />
     </>
   );

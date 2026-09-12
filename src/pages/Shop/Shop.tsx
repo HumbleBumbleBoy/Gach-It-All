@@ -3,6 +3,9 @@ import { useUser } from '@clerk/react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../../lib/api';
 import { clientState } from '../../../lib/clientState';
+import NewBadge from '../../components/NewBadge';
+import CompletionCounter from '../../components/CompletionCounter';
+import { loadOwnership, variantKey } from '../../../lib/ownership';
 
 interface ShopItem {
   id: number;
@@ -26,8 +29,10 @@ interface ShopItem {
 }
 
 // Fixed shop slots configuration
+const HOUR_MS = 60 * 60 * 1000;
+
 const SHOP_SLOTS = [
-  { id: 1, type: 'ONE_TIME_PACK', title: 'Special Pack', description: 'Limited edition pack', section: 'row1', refreshDaily: true, limitOne: true, highlighted: true, canBuyMultiple: false },
+  { id: 1, type: 'ONE_TIME_PACK', title: 'Special Pack', description: 'Limited edition pack', section: 'row1', refreshDaily: true, refreshIntervalMs: HOUR_MS, limitOne: true, highlighted: true, canBuyMultiple: false },
   { id: 2, type: 'MULTI_BUY_PACK', title: 'Boosted Pack', description: 'Enhanced rates', section: 'row1', refreshDaily: true, limitOne: false, canBuyMultiple: true },
   { id: 3, type: 'MULTI_BUY_PACK', title: 'Boosted Pack', description: 'Enhanced rates', section: 'row1', refreshDaily: true, limitOne: false, canBuyMultiple: true },
   { id: 4, type: 'CARD_SLOT', title: 'Common Card', description: 'Random common card', section: 'row2', rarity: 'COMMON', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
@@ -35,10 +40,10 @@ const SHOP_SLOTS = [
   { id: 6, type: 'CARD_SLOT', title: 'Sparse Card', description: 'Random sparse card', section: 'row2', rarity: 'SPARSE', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
   { id: 7, type: 'CARD_SLOT', title: 'Rare Card', description: 'Random rare card', section: 'row2', rarity: 'RARE', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
   { id: 8, type: 'CARD_SLOT', title: 'Uber Rare Card', description: 'Random uber rare card', section: 'row2', rarity: 'UBER_RARE', refreshOnPurchase: false, limitOne: false, canBuyMultiple: true },
-  { id: 9, type: 'MYTHICAL_CARD', title: 'Mythic Card', description: 'Random mythical card', section: 'row2', rarity: 'MYTHICAL', refreshDaily: true, limitOne: true, highlighted: true, canBuyMultiple: false },
-  { id: 10, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, limitOne: true, canBuyMultiple: false },
-  { id: 11, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, limitOne: true, canBuyMultiple: false },
-  { id: 12, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, limitOne: true, canBuyMultiple: false },
+  { id: 9, type: 'MYTHICAL_CARD', title: 'Mythic Card', description: 'Random mythical card', section: 'row2', rarity: 'MYTHICAL', refreshDaily: true, refreshIntervalMs: HOUR_MS, limitOne: true, highlighted: true, canBuyMultiple: false },
+  { id: 10, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, refreshIntervalMs: HOUR_MS * 24, limitOne: true, canBuyMultiple: false },
+  { id: 11, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, refreshIntervalMs: HOUR_MS * 24, limitOne: true, canBuyMultiple: false },
+  { id: 12, type: 'ITEM_SLOT', title: 'Cosmetic', description: 'Special cosmetic item', section: 'row3', refreshDaily: true, refreshIntervalMs: HOUR_MS * 24, limitOne: true, canBuyMultiple: false },
 ];
 
 const qualityMultipliers = {
@@ -77,6 +82,7 @@ export default function Shop() {
   const [timeUntilRefresh, setTimeUntilRefresh] = useState<string>('');
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [purchasedSlotsLoaded, setPurchasedSlotsLoaded] = useState(false);
+  const [ownedVariants, setOwnedVariants] = useState<Map<number, Set<string>>>(new Map());
 
   useEffect(() => {
     if (isSignedIn) {
@@ -108,9 +114,9 @@ export default function Shop() {
 
   const loadExistingCards = async () => {
     try {
-      const collection = await apiClient.getCollection();
-      const existingIds = new Set<number>(collection.items.map((c: any) => c.card_template_id));
-      setExistingCardIds(existingIds);
+      const ownership = await loadOwnership();
+      setExistingCardIds(ownership.templateIds);
+      setOwnedVariants(ownership.variantsByTemplate);
     } catch (error) {
       console.error('Failed to load existing cards:', error);
     }
@@ -257,7 +263,7 @@ export default function Shop() {
         if (slot.limitOne) {
           const newPurchased = new Set(purchasedSlots);
           newPurchased.add(slot.id);
-          setPurchasedSlots(newPurchased);
+          setPurchasedSlots(prev => new Set([...prev, slot.id]));
         }
         
         if (result.reward?.type === 'pack') {
@@ -279,11 +285,9 @@ export default function Shop() {
           setPurchasedSlots(newPurchased);
         }
         
-        // The currency is already updated in apiClient.purchaseShopItem
-        // But dispatch the event to notify other components
         window.dispatchEvent(new Event('currency-updated'));
         window.dispatchEvent(new CustomEvent('achievements-updated'));
-        
+
         // Refresh the currency one more time after a small delay to ensure consistency
         setTimeout(async () => {
           try {
@@ -291,8 +295,13 @@ export default function Shop() {
           } catch (e) {
             // Silent fail
           }
-        }, 500);
-        
+        }, 250);
+
+        // Refresh ownership so badges/counters reflect the new card
+        if (result.reward?.type === 'card') {
+          await loadExistingCards();
+        }
+
         if (slot.type === 'CARD_SLOT' && !slot.limitOne) {
           await refreshCardSlot(slot);
         }
@@ -449,11 +458,27 @@ export default function Shop() {
         
         {item.image_url && (
           <div className="relative group">
+            {isCard && (() => {
+              const templateId = item.id;
+              const owned = ownedVariants.get(templateId);
+              const hasAnyVariant = !!owned && owned.size > 0;
+              const hasThisVariant = owned?.has(variantKey(item.quality, item.enhancement));
+
+              if (!hasAnyVariant) return <NewBadge variant="card" />;
+              if (!hasThisVariant) return <NewBadge variant="variant" />;
+              return null;
+            })()}
+
             <img 
               src={item.image_url} 
               alt={item.name || slot.title}
               className="w-32 h-32 object-contain mx-auto my-4 cursor-pointer"
             />
+
+            {isCard && (
+              <CompletionCounter owned={ownedVariants.get(item.id)?.size ?? 0} total={20} />
+            )}
+
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2 bg-gray-900 text-white rounded-lg shadow-xl border border-gray-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 min-w-50">
               <p className={`font-semibold text-sm ${rarityColor}`}>{item.name || slot.title}</p>
               <p className="text-gray-400 text-xs mt-1 line-clamp-10">{item.description}</p>
