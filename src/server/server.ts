@@ -30,6 +30,7 @@ app.use(clerkMiddleware({
   secretKey: process.env.CLERK_SECRET_KEY,
   publishableKey: process.env.CLERK_PUBLISHABLE_KEY
 }));
+app.use(express.urlencoded({ extended: true }))
 
 app.use(cors({
   origin: ['https://gatchitall.com', 'https://www.gatchitall.com', 'http://localhost:5173'],
@@ -1738,6 +1739,36 @@ app.get('/api/user/all-data', async (req, res) => {
     userAchievements,
     achievements
   });
+});
+
+app.post('/webhooks/kofi', async (req, res) => {
+  const payload = JSON.parse(req.body.data);
+  const KOFI_TOKEN = process.env.KOFI_VERIFICATION_TOKEN;
+
+  if (payload.verification_token !== KOFI_TOKEN) {
+    return res.status(401).send('Invalid token');
+  }
+
+  const supporterEmail = payload.email;
+  if (supporterEmail) {
+    try {
+      // Find the user in the database by email
+      const user = await prisma.user.findUnique({
+        where: { email: supporterEmail }
+      });
+
+      if (user) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { UserStatus: 'SUPPORTER' }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to update supporter status:', error);
+    }
+  }
+
+  res.status(200).send('OK');
 });
 
 setInterval(() => {

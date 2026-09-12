@@ -29,6 +29,7 @@ model User {
 enum UserStatus {
   STANDARD
   SPECIAL
+  SUPPORTER
   CREATOR
 }
 
@@ -127,6 +128,7 @@ model CardTemplates {
 enum Series {
   CARD_GAMES
   FRUITS
+  BRANDS
 }
 
 enum Type {
@@ -134,6 +136,8 @@ enum Type {
   VIDEO_GAME
   GAME
   FOOD
+  PHYSICAL
+  ACTIVITY
 }
 
 enum Rarity {

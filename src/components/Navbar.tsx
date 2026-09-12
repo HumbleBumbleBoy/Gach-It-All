@@ -78,6 +78,8 @@ export default function Navbar() {
         return 'ring-2 ring-green-500 ring-offset-2 ring-offset-gray-800';
       case 'CREATOR':
         return 'ring-2 ring-red-500 ring-offset-2 ring-offset-gray-800';
+      case 'SUPPORTER':
+        return 'ring-2 ring-yellow-500 ring-offset-2 ring-offset-gray-800';
       default:
         return '';
     }
